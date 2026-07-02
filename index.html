@@ -80,11 +80,21 @@
     </div>
   </div>
 
-  <script>
-    // ▼ GASウェブアプリの /exec URL（デプロイを編集して新バージョンを出しても変わりません）
-    var GAS_URL = 'https://script.google.com/macros/s/AKfycbwERXxZ1WDAFfy7aQbSrCdeUge7BN10gP3yxpxzlNTP1ccREwQ2YNXfR211cb216SHn/exec';
+  <!-- GASへ確実に届ける隠しフォーム＋iフレーム（fetchを使わずCORSを回避） -->
+  <iframe name="sink" id="sink" style="display:none"></iframe>
+  <form id="gform" method="POST"
+        action="https://script.google.com/macros/s/AKfycbwERXxZ1WDAFfy7aQbSrCdeUge7BN10gP3yxpxzlNTP1ccREwQ2YNXfR211cb216SHn/exec"
+        target="sink" style="display:none">
+    <input type="hidden" name="category" id="h_category">
+    <input type="hidden" name="direction" id="h_direction">
+    <input type="hidden" name="torihiki" id="h_torihiki">
+    <input type="hidden" name="memo" id="h_memo">
+    <input type="hidden" name="filename" id="h_filename">
+    <input type="hidden" name="mimeType" id="h_mimeType">
+    <input type="hidden" name="data" id="h_data">
+  </form>
 
-    // 種類一覧（dir=trueの6種類だけ「発行/受領」を出す）
+  <script>
     var CATS = [
       {label:'1.請求書',dir:true},{label:'2.契約書',dir:true},{label:'3.領収書',dir:true},
       {label:'4.見積書',dir:true},{label:'5.発注書',dir:true},{label:'6.納品書',dir:true},
@@ -109,6 +119,24 @@
     function toBase64(file){ return new Promise(function(res,rej){ var r=new FileReader();
       r.onload=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(file); }); }
 
+    // 隠しフォームをiフレームへPOST。iフレームのloadで完了を待つ（CORSの影響を受けない確実な方式）
+    function postViaForm(v){
+      return new Promise(function(resolve){
+        var iframe=document.getElementById('sink'), settled=false;
+        function finish(){ if(settled)return; settled=true; iframe.onload=null; resolve(); }
+        iframe.onload=finish;
+        document.getElementById('h_category').value=v.category;
+        document.getElementById('h_direction').value=v.direction;
+        document.getElementById('h_torihiki').value=v.torihiki;
+        document.getElementById('h_memo').value=v.memo;
+        document.getElementById('h_filename').value=v.filename;
+        document.getElementById('h_mimeType').value=v.mimeType;
+        document.getElementById('h_data').value=v.data;
+        document.getElementById('gform').submit();
+        setTimeout(finish, 12000); // 念のためのフォールバック
+      });
+    }
+
     document.getElementById('f').addEventListener('submit', async function(e){
       e.preventDefault();
       var msg=document.getElementById('msg'), btn=document.getElementById('go');
@@ -121,14 +149,13 @@
       try {
         for(var i=0;i<files.length;i++){
           var b64=await toBase64(files[i]);
-          // GASは multipart(FormData) を受け取りにくいので urlencoded で送る
-          var body=new URLSearchParams();
-          body.append('category',cat); body.append('direction',direction);
-          body.append('torihiki',document.getElementById('torihiki').value);
-          body.append('memo',document.getElementById('memo').value);
-          body.append('filename',files[i].name); body.append('mimeType',files[i].type||'application/octet-stream');
-          body.append('data',b64);
-          await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:body});
+          await postViaForm({
+            category:cat, direction:direction,
+            torihiki:document.getElementById('torihiki').value,
+            memo:document.getElementById('memo').value,
+            filename:files[i].name, mimeType:files[i].type||'application/octet-stream',
+            data:b64
+          });
         }
         flash(msg,'ok','✅ '+files.length+'件を送信しました。数秒でGoogleドライブに保存されます。');
         document.getElementById('f').reset(); showFiles(); clearDir(); direction='';
