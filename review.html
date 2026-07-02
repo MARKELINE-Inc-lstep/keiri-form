@@ -42,34 +42,18 @@
     <div id="list"><div class="loading">読み込み中…</div></div>
   </div>
 
-  <!-- GASへ確実に届ける隠しフォーム＋iフレーム（ログイン不要・CORS回避） -->
-  <iframe name="sink" id="sink" style="display:none"></iframe>
-  <form id="gform" method="POST"
-        action="https://script.google.com/macros/s/AKfycbwERXxZ1WDAFfy7aQbSrCdeUge7BN10gP3yxpxzlNTP1ccREwQ2YNXfR211cb216SHn/exec"
-        target="sink" style="display:none">
-    <input type="hidden" name="action" value="sort">
-    <input type="hidden" name="fileId" id="h_fileId">
-    <input type="hidden" name="category" id="h_category">
-    <input type="hidden" name="direction" id="h_direction">
-    <input type="hidden" name="torihiki" id="h_torihiki">
-    <input type="hidden" name="memo" id="h_memo">
-  </form>
-
   <script>
-    var GAS_URL = document.getElementById('gform').getAttribute('action');
+    // credentials:'omit' が肝。Cookieを送らず匿名としてGASにアクセスするので、
+    // Googleの「複数ログインでGASページが開けない」バグの影響を受けない。
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbwERXxZ1WDAFfy7aQbSrCdeUge7BN10gP3yxpxzlNTP1ccREwQ2YNXfR211cb216SHn/exec';
     var CATS = [], DIRMAP = {}, state = {};
 
-    function jsonp(params) {
-      return new Promise(function(resolve, reject) {
-        var cb = 'cb_' + Math.floor(Math.random()*1e9);
-        var s = document.createElement('script');
-        var timer = setTimeout(function(){ cleanup(); reject(new Error('タイムアウト')); }, 20000);
-        function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
-        window[cb] = function(data){ cleanup(); resolve(data); };
-        s.src = GAS_URL + '?' + params + '&callback=' + cb;
-        s.onerror = function(){ cleanup(); reject(new Error('読み込み失敗')); };
-        document.body.appendChild(s);
-      });
+    function apiGet(params) {
+      return fetch(GAS_URL + '?' + params, { credentials: 'omit' }).then(function(r){ return r.json(); });
+    }
+    function apiPost(fields) {
+      return fetch(GAS_URL, { method: 'POST', credentials: 'omit', body: new URLSearchParams(fields) })
+        .then(function(r){ return r.json(); });
     }
 
     function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
@@ -77,7 +61,7 @@
     function load() {
       var box = document.getElementById('list');
       box.innerHTML = '<div class="loading">読み込み中…</div>';
-      jsonp('action=list').then(function(data){
+      apiGet('action=list').then(function(data){
         if (!data.ok) throw new Error('APIエラー');
         CATS = data.categories; DIRMAP = {};
         CATS.forEach(function(c){ DIRMAP[c.label] = c.direction; });
@@ -127,22 +111,22 @@
       if (DIRMAP[cat] === true && !dir) { r.className = 'r ng'; r.textContent = '発行/受領を選択してください'; return; }
       var btn = document.getElementById('go-' + i);
       btn.disabled = true; btn.innerHTML = '<span class="spin"></span>移動中…';
-      document.getElementById('h_fileId').value = fileId;
-      document.getElementById('h_category').value = cat;
-      document.getElementById('h_direction').value = dir;
-      document.getElementById('h_torihiki').value = document.getElementById('tori-' + i).value;
-      document.getElementById('h_memo').value = '';
-      var iframe = document.getElementById('sink'), settled = false;
-      function done() {
-        if (settled) return; settled = true; iframe.onload = null;
-        r.className = 'r ok'; r.textContent = '✅ 移動を実行しました';
-        document.getElementById('item-' + i).style.opacity = .4;
-        btn.textContent = '完了';
-        setTimeout(load, 1800);   // 一覧を再取得して結果を反映
-      }
-      iframe.onload = done;
-      document.getElementById('gform').submit();
-      setTimeout(done, 12000);
+      apiPost({
+        action: 'sort', fileId: fileId, category: cat, direction: dir,
+        torihiki: document.getElementById('tori-' + i).value, memo: ''
+      }).then(function(res){
+        if (res.ok) {
+          r.className = 'r ok'; r.textContent = res.message;
+          document.getElementById('item-' + i).style.opacity = .4;
+          btn.textContent = '完了';
+        } else {
+          r.className = 'r ng'; r.textContent = res.message || 'エラーが発生しました';
+          btn.disabled = false; btn.textContent = 'このフォルダへ移動';
+        }
+      }).catch(function(e){
+        r.className = 'r ng'; r.textContent = '通信エラー: ' + e.message;
+        btn.disabled = false; btn.textContent = 'このフォルダへ移動';
+      });
     }
 
     load();
