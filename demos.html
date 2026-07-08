@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>福祉事業所 業務効率化デモ 一覧</title>
+  <style>
+    :root { --accent:#2563eb; --bg:#f6f7f9; --line:#e3e6ea; --ink:#1f2430; --muted:#6b7280; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+           background:var(--bg); color:var(--ink); }
+    .wrap { max-width:720px; margin:0 auto; padding:28px 16px 48px; }
+    h1 { font-size:20px; margin:8px 0 4px; }
+    .sub { color:var(--muted); font-size:13px; margin:0 0 24px; line-height:1.7; }
+    a.card { display:block; background:#fff; border:1px solid var(--line); border-radius:14px;
+             padding:18px 16px; margin-bottom:14px; text-decoration:none; color:var(--ink);
+             transition:box-shadow .15s, transform .15s; }
+    a.card:hover { box-shadow:0 4px 16px rgba(37,99,235,.12); transform:translateY(-1px); }
+    .card h2 { font-size:16px; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+    .badge { font-size:11px; font-weight:700; color:#fff; background:var(--accent);
+             border-radius:999px; padding:3px 10px; }
+    .badge.p2 { background:#f59e0b; }
+    .badge.p3 { background:#10b981; }
+    .card p { margin:0; font-size:13px; color:var(--muted); line-height:1.7; }
+    .kpi { margin-top:10px; font-size:12px; color:var(--accent); font-weight:600; }
+    .note { margin-top:28px; font-size:12px; color:var(--muted); line-height:1.8;
+            background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🏫 福祉事業所 業務効率化デモ</h1>
+    <p class="sub">放課後等デイサービス・福祉事業所向けの業務効率化システムのデモです。<br>
+    画面はすべてダミーデータによるモックアップで、外部への通信は行いません。</p>
+
+    <a class="card" href="kesseki-demo.html">
+      <h2><span class="badge">優先度 1</span>欠席連絡の自動受付 ＋ 空き枠の自動繰り上げ通知</h2>
+      <p>保護者がLINEで欠席連絡 → 即時受付 → 待機児童の保護者へ自動で空き枠通知 → 先着自動確定／スタッフ承認を切替可能。朝7時の機会損失（1枠 約1.1万円/日）をゼロに。</p>
+      <div class="kpi">⚡ 電話持ち帰り不要 ／ 機会損失を自動回収</div>
+    </a>
+
+    <a class="card" href="sogei-demo.html">
+      <h2><span class="badge p2">優先度 2</span>送迎ルート自動最適化</h2>
+      <p>車両台数・定員の制約下で送迎ルートをワンクリック自動作成。急な欠席が出ても即座に組み直し。既存システム（請求・レセプト中心）にはない機能。</p>
+      <div class="kpi">⚡ ルート作成 40分 → 3秒 ／ 欠席時もワンクリック再計算</div>
+    </a>
+
+    <a class="card" href="keikaku-demo.html">
+      <h2><span class="badge p3">優先度 3</span>個別支援計画 作成支援</h2>
+      <p>日々の支援記録（日報）を蓄積し、半年分の個別支援計画の「案」をAIが自動生成。スタッフは修正・微調整だけ。専門家監修テンプレートで研修後のフォローアップにも。</p>
+      <div class="kpi">⚡ 作成時間 3〜4時間 → 約15分</div>
+    </a>
+
+    <p class="note">※ 事業所名・人名はすべて架空です。実際の導入時は LINE公式アカウント（Lステップ）・既存業務システムとのAPI連携を行います。</p>
+  </div>
+</body>
+</html>
