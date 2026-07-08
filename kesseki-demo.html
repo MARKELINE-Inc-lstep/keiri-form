@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>欠席連絡 → 空き枠自動繰り上げ デモ｜放課後等デイサービス ひまわり</title>
+<style>
+  :root {
+    --accent:#2563eb; --bg:#f6f7f9; --line:#e3e6ea; --ink:#1f2430; --muted:#6b7280;
+    --ok:#059669; --ng:#dc2626; --warn:#d97706;
+    --line-bg:#7494c0; --line-header:#5b7396; --line-green:#8de055;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+         background:var(--bg); color:var(--ink); }
+  .wrap { max-width:1180px; margin:0 auto; padding:20px 16px 48px; }
+
+  /* ===== 上部バー ===== */
+  .topbar { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:18px; }
+  .topbar h1 { font-size:18px; margin:0 0 2px; }
+  .topbar .sub { color:var(--muted); font-size:13px; margin:0; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
+  .mode-label { font-size:13px; font-weight:600; color:var(--muted); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button { padding:10px 16px; font-size:14px; font-weight:600; border:none; background:#fff;
+                cursor:pointer; color:var(--ink); }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .btn { padding:10px 18px; font-size:14px; font-weight:700; border:none; border-radius:10px; cursor:pointer; }
+  .btn-play { background:var(--accent); color:#fff; }
+  .btn-play:disabled { opacity:.5; cursor:default; }
+  .btn-reset { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .playing-note { font-size:13px; color:var(--accent); font-weight:600; display:none; }
+
+  /* ===== 2ペイン / モバイルタブ ===== */
+  .tabs { display:none; gap:8px; margin-bottom:14px; }
+  .tabs button { flex:1; padding:12px; font-size:14px; font-weight:700; border:1px solid var(--line);
+                 background:#fff; border-radius:10px; cursor:pointer; color:var(--ink); position:relative; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .tabs button .dot { position:absolute; top:6px; right:8px; width:9px; height:9px; border-radius:50%;
+                      background:var(--ng); display:none; }
+  .panes { display:grid; grid-template-columns:minmax(320px,420px) 1fr; gap:20px; align-items:start; }
+  @media (max-width:900px) {
+    .panes { display:block; }
+    .tabs { display:flex; }
+    .pane { display:none; }
+    .pane.show { display:block; }
+    .pane + .pane { margin-top:0; }
+  }
+
+  /* ===== LINE風スマホ ===== */
+  .phone { background:#1c1f26; border-radius:34px; padding:12px 10px 14px; max-width:400px; margin:0 auto;
+           box-shadow:0 12px 32px rgba(20,30,60,.25); }
+  .phone-notch { width:110px; height:6px; background:#3a3f4a; border-radius:3px; margin:0 auto 10px; }
+  .persona-bar { display:flex; gap:6px; justify-content:center; margin-bottom:10px; }
+  .persona-chip { font-size:11px; font-weight:700; color:#c9d2e0; background:#2a2f3a; border-radius:99px;
+                  padding:4px 12px; border:1px solid #3a3f4a; }
+  .persona-chip.on { background:var(--line-green); color:#173300; border-color:var(--line-green); }
+  .screen { border-radius:22px; overflow:hidden; background:var(--line-bg); display:flex; flex-direction:column;
+            height:640px; }
+  .line-header { background:var(--line-header); color:#fff; padding:12px 14px; display:flex; align-items:center; gap:10px; }
+  .line-header .back { font-size:18px; opacity:.85; }
+  .line-header .name { font-size:15px; font-weight:700; }
+  .line-header .badge-official { font-size:10px; background:#06c755; border-radius:4px; padding:1px 5px;
+                                 font-weight:700; vertical-align:1px; margin-left:6px; }
+  .line-header .who { font-size:11px; opacity:.85; margin-top:1px; }
+  .chat { flex:1; overflow-y:auto; padding:14px 12px 18px; scroll-behavior:smooth; }
+  .sys-pill { text-align:center; margin:6px 0 12px; }
+  .sys-pill span { font-size:11px; color:#fff; background:rgba(0,0,0,.22); border-radius:99px; padding:3px 12px; }
+  .row { display:flex; margin:10px 0; align-items:flex-end; gap:6px; animation:pop .3s ease; }
+  @keyframes pop { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .row.left { justify-content:flex-start; }
+  .row.right { justify-content:flex-end; }
+  .avatar { width:34px; height:34px; border-radius:50%; background:#fff; display:flex; align-items:center;
+            justify-content:center; font-size:18px; flex:none; align-self:flex-start; }
+  .bubble { max-width:74%; padding:10px 12px; font-size:13.5px; line-height:1.55; border-radius:16px;
+            white-space:pre-wrap; word-break:break-word; }
+  .row.left .bubble { background:#fff; border-top-left-radius:4px; }
+  .row.right .bubble { background:var(--line-green); border-top-right-radius:4px; color:#12250a; }
+  .tstamp { font-size:10px; color:rgba(255,255,255,.85); flex:none; padding-bottom:2px; }
+  .bubble .b-title { font-weight:700; margin-bottom:4px; }
+  .bubble .b-note { font-size:11.5px; color:#6b7280; margin-top:6px; }
+  .chip-row { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 2px 40px; animation:pop .3s ease; }
+  .chip { background:#fff; border:1.5px solid var(--line-header); color:#3b537a; font-weight:700; font-size:13px;
+          border-radius:99px; padding:8px 14px; cursor:pointer; }
+  .chip:disabled { opacity:.45; cursor:default; }
+  .flex-btn { display:block; width:100%; margin-top:10px; background:#06c755; color:#fff; border:none;
+              border-radius:10px; padding:11px; font-size:14px; font-weight:700; cursor:pointer; }
+  .flex-btn:disabled { background:#9ca3af; cursor:default; }
+  .flex-btn.done { background:#9ca3af; }
+  .richmenu { background:#fff; border-top:1px solid #d5dbe4; padding:10px; display:grid;
+              grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .richmenu button { border:1px solid var(--line); background:#f3f6fb; border-radius:10px; padding:10px 4px;
+                     font-size:12px; font-weight:700; color:var(--ink); cursor:pointer; line-height:1.3; }
+  .richmenu button .ic { display:block; font-size:20px; margin-bottom:3px; }
+  .richmenu button:first-child { background:#e8f0ff; border-color:#bcd2f7; color:#1d4ed8; }
+  .richmenu button:disabled { opacity:.45; cursor:default; }
+
+  /* ===== 管理画面 ===== */
+  .admin h2 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:6px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .stat { background:#f8fafc; border:1px solid var(--line); border-radius:12px; padding:12px 8px; text-align:center; }
+  .stat .num { font-size:26px; font-weight:800; line-height:1.1; }
+  .stat .lbl { font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .stat.vacancy .num { color:var(--ok); }
+  .stat.vacancy.zero .num { color:var(--muted); }
+  .stat.flash { animation:flashbg 1s ease; }
+  @keyframes flashbg { 0% { background:#fef9c3; } 100% { background:#f8fafc; } }
+  ul.roster { list-style:none; margin:0; padding:0; }
+  ul.roster li { display:flex; align-items:center; justify-content:space-between; padding:8px 4px;
+                 border-bottom:1px solid #f0f2f5; font-size:13.5px; transition:background .4s; }
+  ul.roster li:last-child { border-bottom:none; }
+  ul.roster li .nm { display:flex; align-items:center; gap:8px; }
+  ul.roster li .face { width:26px; height:26px; border-radius:50%; background:#eef2ff; display:flex;
+                       align-items:center; justify-content:center; font-size:14px; }
+  .pill { font-size:11px; font-weight:700; border-radius:99px; padding:3px 10px; }
+  .pill.ok   { background:#eff6ff; color:#1d4ed8; }
+  .pill.abs  { background:#fef2f2; color:#b91c1c; }
+  .pill.up   { background:#ecfdf5; color:#047857; }
+  .pill.wait { background:#f3f4f6; color:#4b5563; }
+  .pill.sent { background:#fffbeb; color:#b45309; }
+  li.hl { background:#fefce8; border-radius:8px; }
+  .cap-note { font-size:12px; color:var(--muted); margin:2px 0 10px; }
+
+  /* 承認カード */
+  .approve-card { border:2px solid var(--warn); background:#fffbeb; border-radius:14px; padding:16px;
+                  margin-bottom:14px; animation:pop .3s ease; }
+  .approve-card h3 { margin:0 0 6px; font-size:14px; color:#92400e; }
+  .approve-card p { margin:0 0 12px; font-size:13px; color:#78350f; line-height:1.6; }
+  .approve-card .btns { display:flex; gap:10px; }
+  .btn-approve { flex:1; background:var(--warn); color:#fff; border:none; border-radius:10px; padding:12px;
+                 font-size:14px; font-weight:700; cursor:pointer; animation:pulse 1.4s ease infinite; }
+  @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(217,119,6,.45); } 50% { box-shadow:0 0 0 8px rgba(217,119,6,0); } }
+
+  /* ログ */
+  .log { max-height:280px; overflow-y:auto; }
+  .log-empty { font-size:13px; color:var(--muted); padding:4px 2px; }
+  .log-item { display:flex; gap:10px; padding:9px 2px; border-bottom:1px solid #f0f2f5; font-size:13px;
+              animation:pop .3s ease; }
+  .log-item:last-child { border-bottom:none; }
+  .log-item .lt { font-variant-numeric:tabular-nums; color:var(--muted); font-size:12px; flex:none; width:38px;
+                  padding-top:1px; }
+  .log-item .li { flex:none; }
+  .log-item .lx { line-height:1.5; }
+  .log-item.auto .lx b { color:var(--accent); }
+
+  /* サマリー */
+  .summary { display:none; border:none; border-radius:14px; padding:20px 18px; margin-bottom:14px;
+             background:linear-gradient(135deg,#1d4ed8,#2563eb 55%,#3b82f6); color:#fff; animation:pop .4s ease; }
+  .summary h3 { margin:0 0 12px; font-size:15px; }
+  .summary .big { font-size:26px; font-weight:800; margin:2px 0 2px; }
+  .summary .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:6px; }
+  .summary .box { background:rgba(255,255,255,.14); border-radius:10px; padding:12px; }
+  .summary .box .k { font-size:12px; opacity:.9; }
+  .summary .foot { font-size:12px; opacity:.85; margin-top:12px; line-height:1.6; }
+
+  .footer-note { text-align:center; font-size:11.5px; color:var(--muted); margin-top:24px; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <h1>🌻 欠席連絡 → 空き枠 自動繰り上げシステム <span style="font-weight:400;color:var(--muted);font-size:13px">提案デモ</span></h1>
+    <p class="sub">放課後等デイサービス ひまわり（架空）｜LINE欠席申請 → 待機児童へ自動通知 → 枠の自動確定</p>
+    <div class="controls">
+      <span class="mode-label">確定方式：</span>
+      <span class="seg" id="modeSeg">
+        <button type="button" id="modeAuto" class="on" onclick="setMode('auto')">⚡ 自動確定</button>
+        <button type="button" id="modeApprove" onclick="setMode('approve')">👤 スタッフ承認</button>
+      </span>
+      <button type="button" class="btn btn-play" id="btnPlay" onclick="playDemo()">▶ デモを再生</button>
+      <button type="button" class="btn btn-reset" onclick="resetAll()">↺ リセット</button>
+      <span class="playing-note" id="playingNote">シナリオ再生中…</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button type="button" id="tabLine" class="on" onclick="showPane('line')">📱 保護者LINE</button>
+    <button type="button" id="tabAdmin" onclick="showPane('admin')">🖥 施設管理画面 <span class="dot" id="adminDot"></span></button>
+  </div>
+
+  <div class="panes">
+
+    <!-- ===== 左：LINE風トーク ===== -->
+    <div class="pane show" id="paneLine">
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="persona-bar">
+          <span class="persona-chip on" id="chipTanaka">👩 田中さん（利用確定）のスマホ</span>
+          <span class="persona-chip" id="chipSato">👨 佐藤さん（待機中）のスマホ</span>
+        </div>
+        <div class="screen">
+          <div class="line-header">
+            <span class="back">‹</span>
+            <div>
+              <div class="name">放課後等デイサービス ひまわり<span class="badge-official">公式</span></div>
+              <div class="who" id="whoLabel">表示中：田中はるとさん 保護者アカウント</div>
+            </div>
+          </div>
+          <div class="chat" id="chat"></div>
+          <div class="richmenu">
+            <button type="button" id="rmAbsence" onclick="startManualAbsence()"><span class="ic">📩</span>欠席連絡</button>
+            <button type="button" disabled><span class="ic">📅</span>利用予約</button>
+            <button type="button" disabled><span class="ic">📢</span>お知らせ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 右：施設管理画面 ===== -->
+    <div class="pane admin" id="paneAdmin">
+
+      <div class="summary" id="summaryCard">
+        <h3>📊 本日の自動対応サマリー</h3>
+        <div class="big">機会損失 ¥11,000 を回収 ✅</div>
+        <div class="grid2">
+          <div class="box"><div class="k">欠席受付 → 枠確定まで</div><div class="big" style="font-size:20px" id="sumTime">4分</div></div>
+          <div class="box"><div class="k">スタッフ対応件数</div><div class="big" style="font-size:20px" id="sumStaff">0件</div></div>
+        </div>
+        <div class="foot" id="sumFoot">電話の持ち帰り対応が不要になりました。出勤後に佐藤さんへ個別フォローのみでOKです。</div>
+      </div>
+
+      <div id="approveSlot"></div>
+
+      <div class="card">
+        <h2>📋 本日の利用状況 <span style="font-weight:400;color:var(--muted);font-size:12px" id="todayLabel"></span></h2>
+        <div class="stats">
+          <div class="stat"><div class="num">10</div><div class="lbl">定員</div></div>
+          <div class="stat" id="statConfirmed"><div class="num" id="numConfirmed">10</div><div class="lbl">利用確定</div></div>
+          <div class="stat vacancy zero" id="statVacancy"><div class="num" id="numVacancy">0</div><div class="lbl">空き枠</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🧒 本日の利用予定リスト</h2>
+        <p class="cap-note">定員10名（送迎あり）</p>
+        <ul class="roster" id="rosterList"></ul>
+      </div>
+
+      <div class="card">
+        <h2>⏳ 待機リスト（キャンセル待ち）</h2>
+        <ul class="roster" id="waitList"></ul>
+      </div>
+
+      <div class="card">
+        <h2>🔔 通知・対応ログ</h2>
+        <div class="log" id="logBox"><div class="log-empty" id="logEmpty">ログはまだありません。「▶ デモを再生」を押すか、LINE側の「欠席連絡」から操作してください。</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer-note">
+    ※ 本画面は営業提案用デモです。登場する事業所名・児童名・金額はすべて架空のものです。<br>
+    ※ 実運用ではLINE公式アカウント（Messaging API）と台帳システムを連携して同じ流れを完全自動で実行します。
+  </div>
+</div>
+
+<script>
+/* ================= データ ================= */
+var ROSTER_INIT = [
+  '田中はると','伊藤さくら','渡辺りく','山本ひなた','中村あおい',
+  '小林れん','加藤めい','吉田そら','佐々木ゆうと','木村ほのか'
+];
+var WAIT_INIT = ['佐藤みお','鈴木そうた','高橋ゆい'];
+var CAPACITY = 10;
+
+var state = {
+  mode: 'auto',            // 'auto' | 'approve'
+  playing: false,
+  manualBusy: false,
+  persona: 'tanaka',       // 'tanaka' | 'sato'
+  roster: [],              // [{name, status}] status: 'ok'|'abs'|'up'
+  waiting: [],             // [{name, notified, promoted}]
+  timers: [],
+  pendingApprove: null,    // function to continue after approval
+  approveTapped: false,
+  chatLog: { tanaka: [], sato: [] }  // 保存済み吹き出し(HTML)を人物別に保持
+};
+
+/* ================= ユーティリティ ================= */
+function $(id){ return document.getElementById(id); }
+function schedule(ms, fn){ var t = setTimeout(fn, ms); state.timers.push(t); return t; }
+function clearTimers(){ state.timers.forEach(clearTimeout); state.timers = []; }
+function nowLabel(){
+  var d = new Date();
+  return d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2);
+}
+function todayLabel(){
+  var d = new Date(), w = ['日','月','火','水','木','金','土'];
+  return (d.getMonth()+1) + '/' + d.getDate() + '(' + w[d.getDay()] + ')';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+/* ================= LINEペイン ================= */
+function setPersona(p){
+  if (state.persona === p) return;
+  state.persona = p;
+  $('chipTanaka').className = 'persona-chip' + (p === 'tanaka' ? ' on' : '');
+  $('chipSato').className   = 'persona-chip' + (p === 'sato'   ? ' on' : '');
+  $('whoLabel').textContent = p === 'tanaka'
+    ? '表示中：田中はるとさん 保護者アカウント'
+    : '表示中：佐藤みおさん 保護者アカウント（待機登録中）';
+  $('rmAbsence').disabled = (p === 'sato');
+  renderChat();
+}
+function renderChat(){
+  var box = $('chat');
+  box.innerHTML = state.chatLog[state.persona].join('');
+  box.scrollTop = box.scrollHeight;
+}
+function pushChat(persona, html){
+  state.chatLog[persona].push(html);
+  if (state.persona === persona) {
+    var box = $('chat');
+    box.insertAdjacentHTML('beforeend', html);
+    box.scrollTop = box.scrollHeight;
+  }
+}
+function sysPill(persona, text){
+  pushChat(persona, '<div class="sys-pill"><span>' + esc(text) + '</span></div>');
+}
+function botBubble(persona, html, time){
+  pushChat(persona,
+    '<div class="row left"><div class="avatar">🌻</div><div class="bubble">' + html +
+    '</div><div class="tstamp">' + esc(time) + '</div></div>');
+}
+function userBubble(persona, html, time){
+  pushChat(persona,
+    '<div class="row right"><div class="tstamp">' + esc(time) + '</div><div class="bubble">' + html + '</div></div>');
+}
+
+/* ================= 管理画面 ================= */
+var STATUS_PILL = {
+  ok:  '<span class="pill ok">確定</span>',
+  abs: '<span class="pill abs">欠席</span>',
+  up:  '<span class="pill up">繰り上げ確定</span>'
+};
+function renderRoster(){
+  $('rosterList').innerHTML = state.roster.map(function(r){
+    return '<li' + (r.hl ? ' class="hl"' : '') + '><span class="nm"><span class="face">🧒</span>' +
+      esc(r.name) + '</span>' + STATUS_PILL[r.status] + '</li>';
+  }).join('');
+}
+function renderWait(){
+  var items = state.waiting.filter(function(w){ return !w.promoted; });
+  $('waitList').innerHTML = items.length ? items.map(function(w, i){
+    return '<li><span class="nm"><span class="face">🧒</span>' + esc(w.name) +
+      ' <span style="color:var(--muted);font-size:11px">第' + (i+1) + '希望順位</span></span>' +
+      (w.notified ? '<span class="pill sent">空き通知済み</span>' : '<span class="pill wait">待機中</span>') + '</li>';
+  }).join('') : '<li style="color:var(--muted);font-size:13px">待機者はいません</li>';
+}
+function renderStats(){
+  var confirmed = state.roster.filter(function(r){ return r.status !== 'abs'; }).length;
+  var vac = CAPACITY - confirmed;
+  $('numConfirmed').textContent = confirmed;
+  $('numVacancy').textContent = vac;
+  $('statVacancy').className = 'stat vacancy' + (vac === 0 ? ' zero' : '');
+}
+function flashStat(id){
+  var el = $(id);
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function addLog(time, icon, html, isAuto){
+  $('logEmpty').style.display = 'none';
+  $('logBox').insertAdjacentHTML('afterbegin',
+    '<div class="log-item' + (isAuto ? ' auto' : '') + '"><span class="lt">' + esc(time) +
+    '</span><span class="li">' + icon + '</span><span class="lx">' + html + '</span></div>');
+  if (window.innerWidth <= 900 && !$('paneAdmin').classList.contains('show')) {
+    $('adminDot').style.display = 'block';
+  }
+}
+function showApproveCard(childName, onApprove){
+  $('approveSlot').innerHTML =
+    '<div class="approve-card" id="approveCard">' +
+      '<h3>👤 繰り上げ承認待ち</h3>' +
+      '<p><b>' + esc(childName) + 'さん</b>（待機1位）が本日の空き枠に利用希望を出しています。<br>' +
+      '送迎ルート・人員配置を確認のうえ承認してください。</p>' +
+      '<div class="btns"><button type="button" class="btn-approve" onclick="approveNow()">✔ 承認して枠を確定する</button></div>' +
+    '</div>';
+  state.pendingApprove = onApprove;
+  if (window.innerWidth <= 900) $('adminDot').style.display = 'block';
+}
+function approveNow(){
+  if (!state.pendingApprove) return;
+  var fn = state.pendingApprove;
+  state.pendingApprove = null;
+  state.approveTapped = true;
+  $('approveSlot').innerHTML = '';
+  fn();
+}
+
+/* ================= モード / タブ ================= */
+function setMode(m){
+  state.mode = m;
+  $('modeAuto').className = (m === 'auto') ? 'on' : '';
+  $('modeApprove').className = (m === 'approve') ? 'on' : '';
+}
+function showPane(p){
+  $('paneLine').className  = 'pane' + (p === 'line'  ? ' show' : '');
+  $('paneAdmin').className = 'pane admin' + (p === 'admin' ? ' show' : '');
+  $('tabLine').className   = (p === 'line')  ? 'on' : '';
+  $('tabAdmin').className  = (p === 'admin') ? 'on' : '';
+  if (p === 'admin') $('adminDot').style.display = 'none';
+}
+
+/* ================= 初期化 / リセット ================= */
+function resetAll(){
+  clearTimers();
+  state.playing = false;
+  state.manualBusy = false;
+  state.pendingApprove = null;
+  state.approveTapped = false;
+  state.roster = ROSTER_INIT.map(function(n){ return { name:n, status:'ok', hl:false }; });
+  state.waiting = WAIT_INIT.map(function(n){ return { name:n, notified:false, promoted:false }; });
+  state.chatLog = { tanaka: [], sato: [] };
+
+  $('btnPlay').disabled = false;
+  $('playingNote').style.display = 'none';
+  $('summaryCard').style.display = 'none';
+  $('approveSlot').innerHTML = '';
+  $('logBox').innerHTML = '<div class="log-empty" id="logEmpty">ログはまだありません。「▶ デモを再生」を押すか、LINE側の「欠席連絡」から操作してください。</div>';
+  $('adminDot').style.display = 'none';
+  $('todayLabel').textContent = '（' + todayLabel() + '）';
+  $('rmAbsence').disabled = false;
+
+  // 初期トーク
+  sysPill('tanaka', todayLabel());
+  state.chatLog.tanaka.push(bubbleHTMLBotGreeting('田中'));
+  sysPill('sato', todayLabel());
+  state.chatLog.sato.push(bubbleHTMLBotGreeting('佐藤'));
+
+  state.persona = 'tanaka';
+  $('chipTanaka').className = 'persona-chip on';
+  $('chipSato').className = 'persona-chip';
+  $('whoLabel').textContent = '表示中：田中はるとさん 保護者アカウント';
+  renderChat();
+  renderRoster(); renderWait(); renderStats();
+}
+function bubbleHTMLBotGreeting(family){
+  return '<div class="row left"><div class="avatar">🌻</div><div class="bubble">' +
+    '<div class="b-title">' + esc(family) + '様、おはようございます☀</div>' +
+    '欠席のご連絡は下の「欠席連絡」ボタンからいつでも送信できます（24時間受付）。' +
+    '</div><div class="tstamp">6:30</div></div>';
+}
+
+/* ================= 共通フロー（空き枠発生後） =================
+   opts: {tAccept, tNotify, tWish, tFix, manual}                 */
+function runVacancyFlow(opts){
+  var m = opts.manual;
+
+  // 待機者へ一斉通知
+  schedule(m ? 1600 : 1800, function(){
+    state.waiting.forEach(function(w){ w.notified = true; });
+    renderWait();
+    addLog(opts.tNotify, '📨',
+      '待機リスト<b>3名</b>（佐藤みお・鈴木そうた・高橋ゆい）へ「本日1枠空きました」を<b>一斉自動送信</b>', true);
+    // 佐藤さんのトークに通知が届く
+    botBubble('sato',
+      '<div class="b-title">🈳 本日1枠空きました！</div>' +
+      '本日 ' + todayLabel() + ' に急きょ1枠空きが出ました。<br>ご利用を希望される場合は下のボタンをタップしてください。' +
+      '<div class="b-note">※ 先着順で確定します</div>' +
+      '<button type="button" class="flex-btn" id="wishBtn" onclick="tapWish()">✋ 利用希望する</button>',
+      opts.tNotify);
+  });
+
+  // 佐藤さんのスマホへ表示切替
+  schedule(m ? 3200 : 3600, function(){
+    setPersona('sato');
+    if (m) sysPill('sato', 'タップしてみてください →「✋ 利用希望する」');
+  });
+
+  if (!m) {
+    // シナリオ再生：佐藤さんが自動でタップ
+    schedule(5400, function(){ doWish(opts); });
+  } else {
+    state._manualOpts = opts; // 手動時はユーザーのタップ待ち
+  }
+}
+function tapWish(){
+  var btn = $('wishBtn');
+  if (!btn || btn.disabled) return;
+  if (state.playing) return;           // シナリオ再生中は自動進行に任せる
+  var opts = state._manualOpts;
+  if (!opts) return;
+  state._manualOpts = null;
+  opts.tWish = nowLabel(); opts.tFix = nowLabel();
+  doWish(opts);
+}
+function doWish(opts){
+  var btn = $('wishBtn');
+  if (btn){ btn.disabled = true; btn.classList.add('done'); btn.textContent = '✋ 利用希望 送信済み'; }
+  userBubble('sato', '利用希望します！よろしくお願いします。', opts.tWish);
+  addLog(opts.tWish, '✋', '<b>佐藤みお</b>さん（待機1位）が「利用希望」をタップ', false);
+
+  if (state.mode === 'auto') {
+    schedule(1400, function(){ fixSlot(opts, true); });
+    schedule(3200, function(){ showSummary(opts); });
+  } else {
+    schedule(1200, function(){
+      addLog(opts.tWish, '👤', '繰り上げ確定は<b>スタッフ承認待ち</b>です（管理画面で承認してください）', false);
+      showApproveCard('佐藤みお', function(){
+        var t = state.playing ? opts.tFix : nowLabel();
+        opts.tFix = t;
+        fixSlot(opts, false);
+        schedule(1400, function(){ showSummary(opts); });
+      });
+      if (window.innerWidth > 900) $('approveCard').scrollIntoView({behavior:'smooth', block:'center'});
+    });
+  }
+}
+function fixSlot(opts, isAuto){
+  // 佐藤さんを利用リストへ繰り上げ
+  var w = state.waiting[0];
+  w.promoted = true;
+  state.roster.push({ name: w.name, status:'up', hl:true });
+  renderRoster(); renderWait(); renderStats();
+  flashStat('statConfirmed'); flashStat('statVacancy');
+  addLog(opts.tFix, '✅',
+    '<b>佐藤みお</b>さんの本日利用が<b>確定</b>（' + (isAuto ? '先着・自動確定' : 'スタッフ承認') + '）。利用リストへ繰り上げ', isAuto);
+  botBubble('sato',
+    '<div class="b-title">✅ ご利用確定のお知らせ</div>' +
+    '佐藤みおさんの本日（' + todayLabel() + '）のご利用が確定しました。<br>お迎え時間は改めてスタッフよりご連絡します。' +
+    '<div class="b-note">キャンセルの場合はこのトークからご連絡ください</div>', opts.tFix);
+  schedule(600, function(){
+    state.roster.forEach(function(r){ r.hl = false; });
+    renderRoster();
+  });
+}
+function showSummary(opts){
+  var isAuto = (state.mode === 'auto');
+  $('sumStaff').textContent = isAuto ? '0件' : '1件';
+  $('sumFoot').textContent = isAuto
+    ? '電話の持ち帰り対応が不要になりました。出勤後に佐藤さんへ個別フォローのみでOKです。'
+    : 'スタッフ対応は管理画面での「承認」タップ1回のみ。電話の持ち帰り対応は不要になりました。';
+  $('sumTime').textContent = opts.manual ? '数分' : '4分';
+  $('summaryCard').style.display = 'block';
+  addLog(opts.manual ? nowLabel() : '6:53', '📊',
+    '本日の対応完了：機会損失 <b>¥11,000</b> を回収（1名分の利用単価）', true);
+  state.playing = false;
+  state.manualBusy = false;
+  $('btnPlay').disabled = false;
+  $('playingNote').style.display = 'none';
+  if (window.innerWidth > 900) $('summaryCard').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* ================= シナリオ自動再生 ================= */
+function playDemo(){
+  resetAll();
+  state.playing = true;
+  $('btnPlay').disabled = true;
+  $('playingNote').style.display = 'inline';
+  setPersona('tanaka');
+  if (window.innerWidth <= 900) showPane('line');
+
+  // 1) 6:48 田中さんが欠席申請
+  schedule(700, function(){
+    sysPill('tanaka', 'リッチメニュー「📩 欠席連絡」をタップ');
+  });
+  schedule(1600, function(){
+    userBubble('tanaka',
+      '<div class="b-title">📩 欠席連絡</div>対象：田中はると<br>日付：本日 ' + todayLabel() +
+      '<br>理由：発熱のため', '6:48');
+  });
+
+  // 2) 6:48 自動受付 + 管理画面更新
+  schedule(3200, function(){
+    botBubble('tanaka',
+      '<div class="b-title">✅ 欠席を受け付けました</div>田中はるとさん／本日 ' + todayLabel() +
+      '<br>お大事になさってください。<div class="b-note">受付番号 #A-0708-01（自動処理）</div>', '6:48');
+    state.roster[0].status = 'abs'; state.roster[0].hl = true;
+    renderRoster(); renderStats();
+    flashStat('statVacancy');
+    addLog('6:48', '📩', '<b>田中はると</b>さんの欠席連絡をLINEで受付（<b>自動応答</b>・スタッフ対応不要）', true);
+    addLog('6:48', '🈳', '空き枠が<b>+1</b>になりました（確定 9／定員 10）', true);
+    schedule(900, function(){ state.roster[0].hl = false; renderRoster(); });
+  });
+
+  // 3) 6:49 待機者へ一斉通知 → 4) 6:52 佐藤さんタップ → 5) 分岐 → 6) サマリー
+  schedule(3400, function(){
+    runVacancyFlow({ tNotify:'6:49', tWish:'6:52', tFix:'6:52', manual:false });
+  });
+}
+
+/* ================= 手動操作（欠席連絡フロー） ================= */
+function startManualAbsence(){
+  if (state.playing || state.manualBusy) return;
+  if (state.persona !== 'tanaka') return;
+  if (state.roster[0].status === 'abs') {
+    userBubble('tanaka', '欠席連絡', nowLabel());
+    schedule(600, function(){
+      botBubble('tanaka', '田中はるとさんは本日すでに<b>欠席</b>で承っています。変更がある場合はスタッフまでご連絡ください。<div class="b-note">↺ リセットで最初からお試しいただけます</div>', nowLabel());
+    });
+    return;
+  }
+  state.manualBusy = true;
+  userBubble('tanaka', '欠席連絡', nowLabel());
+  schedule(700, function(){
+    botBubble('tanaka', '<div class="b-title">📩 欠席連絡の受付</div>田中はるとさんの欠席日を選択してください。', nowLabel());
+    var w = ['日','月','火','水','木','金','土'];
+    var html = '<div class="chip-row" id="dateChips">';
+    for (var i = 0; i < 3; i++) {
+      var d = new Date(); d.setDate(d.getDate() + i);
+      var lbl = (i === 0 ? '本日 ' : '') + (d.getMonth()+1) + '/' + d.getDate() + '(' + w[d.getDay()] + ')';
+      html += '<button type="button" class="chip" onclick="pickDate(' + i + ', this)">' + lbl + '</button>';
+    }
+    html += '</div>';
+    pushChat('tanaka', html);
+  });
+}
+function pickDate(offset, btn){
+  var chips = document.querySelectorAll('#dateChips .chip');
+  for (var i = 0; i < chips.length; i++) chips[i].disabled = true;
+  var label = btn.textContent;
+  userBubble('tanaka', esc(label) + ' の欠席でお願いします', nowLabel());
+  schedule(700, function(){
+    botBubble('tanaka',
+      '<div class="b-title">ご確認ください</div>対象：田中はると<br>日付：' + esc(label) +
+      '<br>この内容で欠席連絡を送信しますか？', nowLabel());
+    pushChat('tanaka',
+      '<div class="chip-row" id="confirmChips">' +
+      '<button type="button" class="chip" onclick="confirmAbsence(' + offset + ', true, this)">はい、送信する</button>' +
+      '<button type="button" class="chip" onclick="confirmAbsence(' + offset + ', false, this)">キャンセル</button></div>');
+  });
+}
+function confirmAbsence(offset, yes, btn){
+  var chips = document.querySelectorAll('#confirmChips .chip');
+  for (var i = 0; i < chips.length; i++) chips[i].disabled = true;
+  if (!yes) {
+    userBubble('tanaka', 'キャンセル', nowLabel());
+    schedule(600, function(){
+      botBubble('tanaka', '欠席連絡をキャンセルしました。いつでもやり直せます。', nowLabel());
+    });
+    state.manualBusy = false;
+    return;
+  }
+  userBubble('tanaka', 'はい、送信します', nowLabel());
+  var t = nowLabel();
+
+  if (offset !== 0) {
+    // 本日以外：受付のみ（空き枠フローは前日夜に実行される想定）
+    schedule(800, function(){
+      botBubble('tanaka',
+        '<div class="b-title">✅ 欠席を受け付けました</div>前日までのご連絡ありがとうございます。空き枠のご案内は<b>前日夜に自動送信</b>されます。<div class="b-note">自動処理・スタッフ対応不要</div>', t);
+      addLog(t, '📩', '<b>田中はると</b>さんの欠席連絡（後日分）をLINEで自動受付', true);
+      state.manualBusy = false;
+    });
+    return;
+  }
+
+  // 本日欠席 → シナリオと同じ自動連鎖
+  schedule(900, function(){
+    botBubble('tanaka',
+      '<div class="b-title">✅ 欠席を受け付けました</div>田中はるとさん／本日 ' + todayLabel() +
+      '<br>お大事になさってください。<div class="b-note">受付番号 #A-' + ('0'+(new Date().getMonth()+1)).slice(-2) + ('0'+new Date().getDate()).slice(-2) + '-01（自動処理）</div>', t);
+    state.roster[0].status = 'abs'; state.roster[0].hl = true;
+    renderRoster(); renderStats(); flashStat('statVacancy');
+    addLog(t, '📩', '<b>田中はると</b>さんの欠席連絡をLINEで受付（<b>自動応答</b>・スタッフ対応不要）', true);
+    addLog(t, '🈳', '空き枠が<b>+1</b>になりました（確定 9／定員 10）', true);
+    schedule(900, function(){ state.roster[0].hl = false; renderRoster(); });
+    runVacancyFlow({ tNotify:nowLabel(), tWish:nowLabel(), tFix:nowLabel(), manual:true });
+  });
+}
+
+/* ================= 起動 ================= */
+resetAll();
+</script>
+</body>
+</html>
