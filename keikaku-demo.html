@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>個別支援計画 作成支援システム（デモ）</title>
+  <style>
+    :root { --accent:#2563eb; --bg:#f6f7f9; --line:#e3e6ea; --ink:#1f2430; --muted:#6b7280;
+            --accent-soft:#eef2ff; --ok:#059669; --ok-soft:#ecfdf5; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+           background:var(--bg); color:var(--ink); line-height:1.65; }
+    .wrap { max-width:860px; margin:0 auto; padding:20px 16px 60px; }
+
+    /* ---------- ヘッダー ---------- */
+    header h1 { font-size:20px; margin:8px 0 4px; }
+    header .sub { color:var(--muted); font-size:13px; margin:0 0 6px; }
+    .demo-badge { display:inline-block; font-size:11px; font-weight:700; color:var(--accent);
+                  background:var(--accent-soft); border:1px solid #c7d2fe; border-radius:999px;
+                  padding:2px 10px; vertical-align:2px; margin-left:8px; }
+
+    /* ---------- ステップインジケーター ---------- */
+    .steps { display:flex; align-items:center; gap:4px; margin:18px 0 22px; }
+    .step { flex:1; text-align:center; position:relative; }
+    .step .dot { width:34px; height:34px; border-radius:50%; background:#fff; border:2px solid var(--line);
+                 color:var(--muted); font-weight:700; font-size:14px; display:flex; align-items:center;
+                 justify-content:center; margin:0 auto 6px; transition:all .3s; }
+    .step .lbl { font-size:11px; color:var(--muted); font-weight:600; }
+    .step.active .dot { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .step.active .lbl { color:var(--accent); }
+    .step.done .dot { background:var(--ok); border-color:var(--ok); color:#fff; }
+    .step.done .lbl { color:var(--ok); }
+    .step-arrow { color:#c7ccd3; font-size:16px; padding-bottom:20px; }
+
+    /* ---------- 共通カード ---------- */
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; margin-bottom:14px; }
+    h2 { font-size:16px; margin:0 0 4px; }
+    .hint { color:var(--muted); font-size:13px; margin:0 0 14px; }
+    .btn { display:inline-block; background:var(--accent); color:#fff; border:none; border-radius:10px;
+           padding:13px 22px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .btn:disabled { opacity:.5; cursor:default; }
+    .btn.ghost { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+    .btn.big { width:100%; padding:15px; font-size:16px; border-radius:12px; }
+    .nav-row { display:flex; gap:10px; justify-content:space-between; margin-top:8px; }
+
+    .screen { display:none; }
+    .screen.on { display:block; animation:fadein .35s ease; }
+    @keyframes fadein { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+    /* ---------- ステップ①：児童・日報 ---------- */
+    .child-box { display:flex; align-items:center; gap:14px; }
+    .avatar { width:52px; height:52px; border-radius:50%; background:var(--accent-soft); border:1px solid #c7d2fe;
+              display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
+    .child-box .name { font-size:16px; font-weight:700; }
+    .child-box .meta { font-size:12px; color:var(--muted); }
+    .child-select { margin-left:auto; font-size:12px; color:var(--accent); background:none; border:1px solid var(--line);
+                    border-radius:8px; padding:6px 10px; cursor:pointer; font-family:inherit; }
+
+    .summary-bar { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
+    .stat { flex:1; min-width:120px; background:var(--accent-soft); border:1px solid #dbe4ff; border-radius:10px;
+            padding:10px 12px; text-align:center; }
+    .stat b { display:block; font-size:20px; color:var(--accent); }
+    .stat span { font-size:11px; color:var(--muted); }
+
+    .log-list { display:grid; gap:10px; }
+    .log { background:#fafbfc; border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+    .log .head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+    .log .date { font-size:12px; font-weight:700; color:var(--accent); }
+    .tag { font-size:10.5px; font-weight:600; border-radius:999px; padding:1px 9px; background:#eef2ff; color:#3b4fc4; }
+    .tag.sense { background:#fef3c7; color:#92400e; }
+    .tag.comm  { background:#ecfdf5; color:#065f46; }
+    .tag.life  { background:#fce7f3; color:#9d174d; }
+    .log .act { font-size:13.5px; margin:0 0 4px; }
+    .log .note { font-size:12.5px; color:var(--muted); margin:0; }
+    .log .note::before { content:"スタッフ所見："; font-weight:600; color:#8b93a1; }
+    .more-note { text-align:center; font-size:12px; color:var(--muted); padding:6px 0 2px; }
+
+    /* ---------- ステップ②：AI生成 ---------- */
+    .gen-hero { text-align:center; padding:26px 12px; }
+    .gen-hero p { color:var(--muted); font-size:13.5px; margin:0 0 18px; }
+    .progress-list { display:none; margin:6px auto 0; max-width:420px; text-align:left; }
+    .progress-list div { display:flex; align-items:center; gap:10px; font-size:14px; color:var(--muted);
+                         padding:8px 4px; opacity:.35; transition:opacity .3s; }
+    .progress-list div.run { opacity:1; color:var(--ink); }
+    .progress-list div.ok { opacity:1; color:var(--ok); }
+    .p-ic { width:20px; height:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+    .spin { width:15px; height:15px; border:2px solid var(--accent); border-top-color:transparent;
+            border-radius:50%; animation:s .7s linear infinite; }
+    @keyframes s { to { transform:rotate(360deg); } }
+
+    .plan-out { display:grid; gap:12px; }
+    .plan-sec { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px;
+                opacity:0; transform:translateY(8px); transition:opacity .45s, transform .45s; }
+    .plan-sec.show { opacity:1; transform:none; }
+    .plan-sec h3 { font-size:14px; margin:0 0 8px; color:var(--accent); display:flex; align-items:center; gap:7px; }
+    .plan-sec h3::before { content:""; width:4px; height:16px; border-radius:2px; background:var(--accent); }
+    .plan-sec p { font-size:13.5px; margin:0; white-space:pre-wrap; }
+    .caret::after { content:"▍"; color:var(--accent); animation:blink .8s steps(1) infinite; }
+    @keyframes blink { 50% { opacity:0; } }
+    .goal-item { border-left:3px solid #c7d2fe; padding:2px 0 2px 12px; margin:0 0 10px;
+                 opacity:0; transform:translateY(6px); transition:opacity .4s, transform .4s; }
+    .goal-item.show { opacity:1; transform:none; }
+    .goal-item:last-child { margin-bottom:0; }
+    .goal-item b { font-size:13.5px; display:block; }
+    .goal-item span { font-size:12.5px; color:var(--muted); }
+
+    table.sup { width:100%; border-collapse:collapse; font-size:12.5px; }
+    table.sup th, table.sup td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+    table.sup th { background:#f3f5f8; font-size:11.5px; color:var(--muted); white-space:nowrap; }
+    table.sup tr.row { opacity:0; transition:opacity .4s; }
+    table.sup tr.row.show { opacity:1; }
+    .tbl-scroll { overflow-x:auto; }
+
+    /* ---------- ステップ③：編集 ---------- */
+    .edit-tip { display:flex; gap:10px; align-items:flex-start; background:#fffbeb; border:1px solid #fde68a;
+                border-radius:12px; padding:12px 14px; font-size:13px; color:#92400e; margin-bottom:14px; }
+    [contenteditable="true"] { outline:none; border-radius:8px; transition:background .2s, box-shadow .2s; }
+    [contenteditable="true"]:hover { background:#f5f8ff; }
+    [contenteditable="true"]:focus { background:#f5f8ff; box-shadow:0 0 0 2px var(--accent); }
+    .edit-badge { font-size:10px; font-weight:700; color:#8b93a1; background:#f3f5f8; border-radius:999px;
+                  padding:1px 8px; margin-left:auto; }
+    .plan-sec.editable h3 { justify-content:flex-start; }
+
+    .effect-card { background:linear-gradient(135deg,#eef2ff,#ecfdf5); border:1px solid #dbe4ff;
+                   border-radius:14px; padding:18px 16px; margin-bottom:14px; }
+    .effect-card h2 { font-size:14px; color:var(--ink); }
+    .effect-row { display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; margin:10px 0 4px; }
+    .time-box { text-align:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 20px; }
+    .time-box .t { font-size:22px; font-weight:800; }
+    .time-box.before .t { color:var(--muted); text-decoration:line-through; text-decoration-thickness:2px; }
+    .time-box.after .t { color:var(--ok); }
+    .time-box span { font-size:11px; color:var(--muted); }
+    .effect-arrow { font-size:22px; color:var(--accent); font-weight:700; }
+    .effect-note { text-align:center; font-size:12px; color:var(--muted); margin:6px 0 0; }
+
+    /* ---------- 帳票プレビュー ---------- */
+    .overlay { display:none; position:fixed; inset:0; background:rgba(31,36,48,.55); z-index:50;
+               padding:20px 12px; overflow-y:auto; }
+    .overlay.on { display:block; }
+    .paper { max-width:760px; margin:0 auto 20px; background:#fff; color:#111; border-radius:4px;
+             padding:34px 38px; box-shadow:0 10px 40px rgba(0,0,0,.3);
+             font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; }
+    .paper h2 { text-align:center; font-size:19px; letter-spacing:.35em; margin:0 0 18px; color:#111;
+                border:none; font-weight:700; }
+    .paper table { width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:14px; }
+    .paper th, .paper td { border:1px solid #333; padding:8px 10px; text-align:left; vertical-align:top; }
+    .paper th { background:#f2f2f2; font-weight:700; white-space:nowrap; width:130px; }
+    .paper .sec-title { background:#e8e8e8; font-weight:700; text-align:center; }
+    .paper .consent { margin-top:22px; font-size:12.5px; }
+    .paper .sign-row { display:flex; gap:24px; margin-top:14px; flex-wrap:wrap; }
+    .paper .sign { flex:1; min-width:200px; border-bottom:1px solid #333; padding:14px 4px 4px; font-size:12px; }
+    .overlay-bar { max-width:760px; margin:0 auto 12px; display:flex; justify-content:space-between; gap:10px; }
+    .overlay-bar .btn { padding:10px 18px; font-size:13px; }
+    .paper td[data-mirror] { white-space:pre-wrap; }
+    .paper .goal-line { margin:0 0 6px; }
+    .paper .goal-line:last-child { margin-bottom:0; }
+
+    footer { margin-top:26px; text-align:center; font-size:11.5px; color:var(--muted); }
+    footer .super { display:inline-block; background:#fff; border:1px solid var(--line); border-radius:999px;
+                    padding:4px 14px; margin-bottom:8px; font-weight:600; }
+
+    @media (max-width:560px) {
+      .paper { padding:22px 16px; }
+      .paper th { width:96px; }
+    }
+    @media print {
+      body * { visibility:hidden; }
+      .overlay, .overlay * { visibility:visible; }
+      .overlay { position:absolute; inset:0; background:#fff; padding:0; }
+      .overlay-bar { display:none; }
+      .paper { box-shadow:none; padding:0; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>📋 個別支援計画 作成支援システム<span class="demo-badge">提案デモ</span></h1>
+    <p class="sub">放課後等デイサービス ひまわり ｜ 日々の支援記録から、AIが計画案を自動作成。スタッフは修正・微調整だけ。</p>
+  </header>
+
+  <div class="steps" id="steps">
+    <div class="step active" data-s="1"><div class="dot">①</div><div class="lbl">日報データ確認</div></div>
+    <div class="step-arrow">→</div>
+    <div class="step" data-s="2"><div class="dot">②</div><div class="lbl">AI計画案生成</div></div>
+    <div class="step-arrow">→</div>
+    <div class="step" data-s="3"><div class="dot">③</div><div class="lbl">編集・確定</div></div>
+  </div>
+
+  <!-- ================= ステップ① ================= -->
+  <section class="screen on" id="sc1">
+    <div class="card">
+      <div class="child-box">
+        <div class="avatar">🧒</div>
+        <div>
+          <div class="name">田中 はると</div>
+          <div class="meta">8歳（小2）・自閉スペクトラム症 ｜ 利用開始：2024年4月 ｜ 次回計画更新：2026年7月</div>
+        </div>
+        <button class="child-select" type="button" onclick="alert('デモ版のため、対象児童は「田中はると」さんに固定されています。')">児童を変更</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>蓄積された支援記録（日報）</h2>
+      <p class="hint">日々入力している日報が、そのまま計画作成のデータになります。直近6ヶ月分（2026年1月〜6月）を表示しています。</p>
+
+      <div class="summary-bar">
+        <div class="stat"><b>42<small style="font-size:12px">件</small></b><span>6ヶ月の記録数</span></div>
+        <div class="stat"><b>4<small style="font-size:12px">領域</small></b><span>集団・感覚・言語・生活</span></div>
+        <div class="stat"><b>6/24</b><span>最終保護者面談</span></div>
+      </div>
+
+      <div class="log-list">
+        <div class="log"><div class="head"><span class="date">2026/06/24</span><span class="tag comm">保護者面談</span></div>
+          <p class="act">保護者面談を実施。家庭でも「かして」「まって」の言葉が出てきているとのこと。</p>
+          <p class="note">来年度に向けて集団の中で過ごす力を伸ばしたいというご意向。聴覚過敏への配慮は継続希望。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/06/03</span><span class="tag">集団活動</span></div>
+          <p class="act">カードゲームで、自分からルールを友だちに説明する場面があった。</p>
+          <p class="note">好きな活動では主体的な関わりが増えている。役割があると集団参加が安定する。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/05/13</span><span class="tag sense">感覚特性</span></div>
+          <p class="act">音楽活動にイヤーマフを使用して参加。最後の合奏まで退室せずに過ごせた。</p>
+          <p class="note">イヤーマフの自己選択が定着してきた。「使う？」の声かけ前に自分で取りに行けた。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/04/22</span><span class="tag life">生活スキル</span></div>
+          <p class="act">おやつ当番に挑戦。トレーの配布を最後までやり切り、友だちから「ありがとう」と言われ笑顔。</p>
+          <p class="note">当番活動が自信につながっている様子。手順カードの提示は残り2工程まで減らせた。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/04/08</span><span class="tag sense">感覚特性</span></div>
+          <p class="act">新年度の環境変化で落ち着かず、活動前に室内を歩き回る様子。個別スケジュール表を提示すると着席できた。</p>
+          <p class="note">見通しが持てると切り替えやすい。年度替わりは視覚支援を厚めにする必要あり。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/03/12</span><span class="tag comm">コミュニケーション</span></div>
+          <p class="act">ブロック遊びで玩具の取り合いになりかけたが、気持ちの絵カードを使って「かなしい」を選んで伝えられた。</p>
+          <p class="note">絵カードを介した気持ちの表出が安定。言葉での表現につなげる段階に来ている。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/02/25</span><span class="tag comm">コミュニケーション</span></div>
+          <p class="act">自由遊びの時間に、友だちの玩具を使いたいとき「かして」と言葉で伝えられた（2回）。</p>
+          <p class="note">事前のロールプレイが効果的だった。成功体験の直後に具体的にほめると定着しやすい。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/02/10</span><span class="tag life">制作活動</span></div>
+          <p class="act">折り紙制作。手順を1枚ずつ写真カードで提示したところ、最後まで自分の力で完成させた。</p>
+          <p class="note">工程の視覚提示があれば集中が持続する。完成作品を保護者に見せることを楽しみにしていた。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/01/28</span><span class="tag sense">感覚特性</span></div>
+          <p class="act">清掃時の掃除機の音で耳をふさぎ一時退室。別室でクールダウン後、10分で自分から戻ってきた。</p>
+          <p class="note">退室→クールダウン→復帰の流れが自分でできつつある。事前予告があれば退室せず過ごせる日もある。</p></div>
+        <div class="log"><div class="head"><span class="date">2026/01/14</span><span class="tag">集団活動</span></div>
+          <p class="act">集団でのカード遊びに30分参加できた。順番を待つ場面で離席せず待てたのは初めて。</p>
+          <p class="note">好きな題材（乗り物カード）だと参加時間が伸びる。「あと○回で交代」の声かけが有効。</p></div>
+      </div>
+      <p class="more-note">…ほか 32件の記録（スクロールせずAIがすべて読み取ります）</p>
+    </div>
+
+    <button class="btn big" onclick="goStep(2)">この6ヶ月の記録 42件から計画案を生成 →</button>
+  </section>
+
+  <!-- ================= ステップ② ================= -->
+  <section class="screen" id="sc2">
+    <div class="card gen-hero" id="genHero">
+      <h2>AIによる個別支援計画案の生成</h2>
+      <p>田中はるとさんの直近6ヶ月・42件の日報と前回計画をもとに、<br>専門家監修テンプレートに沿った計画案を作成します。</p>
+      <button class="btn" id="genBtn" onclick="startGen()">✨ AIで計画案を生成</button>
+      <div class="progress-list" id="progress">
+        <div><span class="p-ic"></span>日報 42件を分析中…</div>
+        <div><span class="p-ic"></span>本人の特性・強み・課題を整理中…</div>
+        <div><span class="p-ic"></span>保護者面談記録から意向を抽出中…</div>
+        <div><span class="p-ic"></span>長期目標・短期目標を作成中…</div>
+        <div><span class="p-ic"></span>支援内容・頻度・担当を構成中…</div>
+      </div>
+    </div>
+
+    <div class="plan-out" id="planOut"></div>
+
+    <div class="nav-row" id="nav2" style="display:none">
+      <button class="btn ghost" onclick="goStep(1)">← 日報に戻る</button>
+      <button class="btn" onclick="goStep(3)">この案を編集する →</button>
+    </div>
+  </section>
+
+  <!-- ================= ステップ③ ================= -->
+  <section class="screen" id="sc3">
+    <div class="edit-tip">
+      <span style="font-size:18px">✏️</span>
+      <div><b>あとは修正・微調整だけ。</b>各セクションをタップ（クリック）すると、その場で直接編集できます。ゼロから書く必要はありません。</div>
+    </div>
+
+    <div class="plan-out" id="planEdit"></div>
+
+    <div class="effect-card">
+      <h2>⏱ 導入効果の目安</h2>
+      <div class="effect-row">
+        <div class="time-box before"><div class="t">3〜4時間</div><span>従来の計画案作成（手書き・Word）</span></div>
+        <div class="effect-arrow">→</div>
+        <div class="time-box after"><div class="t">約15分</div><span>本システム（生成＋微調整）</span></div>
+      </div>
+      <p class="effect-note">月あたりの更新対象が10名の場合、約30時間/月の事務時間を支援そのものに充てられます。</p>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn ghost" onclick="goStep(2)">← 生成画面に戻る</button>
+      <div style="display:flex; gap:10px;">
+        <button class="btn ghost" onclick="openPreview()">📄 帳票プレビュー</button>
+        <button class="btn" onclick="confirmPlan(this)">計画案を確定</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="super">🎓 監修：専門家監修済みテンプレート使用</div><br>
+    本画面はご提案用デモです。登場する児童名・事業所名・記録内容はすべて架空のものであり、外部への通信は一切行いません。
+  </footer>
+</div>
+
+<!-- ================= 帳票プレビュー ================= -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closePreview()">
+  <div class="overlay-bar">
+    <button class="btn ghost" style="background:#fff" onclick="closePreview()">← 編集に戻る</button>
+    <button class="btn" onclick="window.print()">🖨 印刷イメージ</button>
+  </div>
+  <div class="paper">
+    <h2>個別支援計画書</h2>
+    <table>
+      <tr><th>作成日</th><td>2026年7月8日</td><th>作成者</th><td>児童発達支援管理責任者　佐藤 みなみ</td></tr>
+      <tr><th>事業所名</th><td colspan="3">放課後等デイサービス ひまわり</td></tr>
+      <tr><th>児童氏名</th><td>田中 はると（8歳・小学2年生）</td><th>計画期間</th><td>2026年7月1日 〜 2026年12月31日（6ヶ月）</td></tr>
+    </table>
+    <table>
+      <tr><td class="sec-title" colspan="2">本人・家族の意向</td></tr>
+      <tr><td colspan="2" data-mirror="iko"></td></tr>
+      <tr><td class="sec-title" colspan="2">総合的な支援の方針</td></tr>
+      <tr><td colspan="2" data-mirror="hoshin"></td></tr>
+      <tr><td class="sec-title" colspan="2">長期目標（6ヶ月）</td></tr>
+      <tr><td colspan="2" data-mirror="choki"></td></tr>
+      <tr><td class="sec-title" colspan="2">短期目標（3ヶ月）</td></tr>
+      <tr><td colspan="2" data-mirror="tanki"></td></tr>
+      <tr><td class="sec-title" colspan="2">具体的な支援内容・頻度・担当</td></tr>
+      <tr><td colspan="2" data-mirror="shien"></td></tr>
+      <tr><td class="sec-title" colspan="2">留意事項</td></tr>
+      <tr><td colspan="2" data-mirror="ryui"></td></tr>
+    </table>
+    <div class="consent">
+      上記の個別支援計画について説明を受け、内容に同意しました。
+      <div class="sign-row">
+        <div class="sign">同意日：　　　年　　月　　日</div>
+        <div class="sign">保護者氏名：　　　　　　　　　　　　　　　㊞</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== 計画案データ（AI生成のダミー：日報内容と整合） ========== */
+var PLAN = {
+  iko: {
+    title: '本人・家族の意向', type: 'p',
+    text: '【本人】すきなカードあそびを、おともだちといっしょにやりたい。おおきな音はにがて。\n【家族】家庭でも「かして」「まって」が言えるようになってきて成長を感じている。来年度に向けて、集団の中で落ち着いて過ごす力をさらに伸ばしてほしい。聴覚過敏（掃除機・合奏など）への配慮は引き続きお願いしたい。（2026/6/24 保護者面談より）'
+  },
+  hoshin: {
+    title: '総合的な支援の方針', type: 'p',
+    text: '好きな活動（カード遊び・制作）を入口として集団参加の成功体験を積み重ねる。聴覚過敏に対しては、イヤーマフの自己選択・事前予告・クールダウンの手順を本人が自分で使えるスキルとして定着させる。気持ちの表出は絵カードから言葉への移行期にあるため、絵カードを併用しつつ言葉での表現を具体的にほめて強化する。当番活動など「役割」のある場面を意図的に設け、自己肯定感の向上につなげる。'
+  },
+  choki: {
+    title: '長期目標（6ヶ月）', type: 'goals',
+    items: [
+      { b: '集団活動に、自分に合った対処方法（イヤーマフ・クールダウン等）を自分で選びながら、45分間安定して参加できる。',
+        s: '根拠：1月「30分参加」→6月「ルール説明する側に」と参加の質・時間が向上している。' }
+    ]
+  },
+  tanki: {
+    title: '短期目標（3ヶ月）', type: 'goals',
+    items: [
+      { b: '① 要求や気持ちを、絵カードに加えて言葉（「かして」「まって」「かなしい」等）で週3回以上伝えられる。',
+        s: '現状：2月に言葉での「かして」2回/日を確認。家庭でも出現しており般化の好機。' },
+      { b: '② 苦手な音がある活動でも、イヤーマフの使用や事前予告により、退室せずに最後まで参加できる回数を増やす（月3回以上）。',
+        s: '現状：5月の音楽活動でイヤーマフを自己選択し最後まで参加できた実績あり。' },
+      { b: '③ おやつ当番などの役割活動に、手順カードなしで週1回取り組める。',
+        s: '現状：4月時点で手順カードは残り2工程まで削減できている。' }
+    ]
+  },
+  shien: {
+    title: '具体的な支援内容・頻度・担当', type: 'table',
+    head: ['支援内容', '頻度', '担当'],
+    rows: [
+      ['カード遊び等の小集団活動で「順番を待つ」「交代する」練習。「あと○回で交代」の見通し提示を併用', '週2回', '児童指導員'],
+      ['気持ちの絵カード＋言葉での表出練習。ロールプレイを事前に行い、成功直後に具体的にほめる', '週2回', '言語聴覚士・児童指導員'],
+      ['イヤーマフの自己選択の促し、音の出る活動の事前予告、クールダウンスペースの確保', '毎回', '全スタッフ'],
+      ['おやつ当番・配布係などの役割活動。手順カードを段階的にフェードアウト', '週1回', '児童指導員'],
+      ['個別スケジュール表による見通し支援（特に長期休み明け・行事前後は厚めに）', '毎回', '全スタッフ'],
+      ['家庭との連携ノートで「言葉で伝えられた場面」を共有し、家庭でも同じほめ方を実施', '毎回', '児童発達支援管理責任者']
+    ]
+  },
+  ryui: {
+    title: '留意事項', type: 'p',
+    text: '・掃除機・合奏など大きな音が出る場面は必ず事前に予告する。急な音刺激の後は無理に集団へ戻さず、本人のペースでの復帰（目安10分）を見守る。\n・年度替わりや行事など環境変化の大きい時期は行動が不安定になりやすいため、視覚支援を増やして対応する。\n・新しい課題は好きな題材（乗り物・カード）と組み合わせて導入すると取り組みやすい。\n・次回モニタリング：2026年10月（3ヶ月後）。'
+  }
+};
+var ORDER = ['iko', 'hoshin', 'choki', 'tanki', 'shien', 'ryui'];
+
+/* ========== ステップ制御 ========== */
+var current = 1, generated = false;
+function goStep(n) {
+  if (n === 3 && !generated) { alert('先にステップ②で計画案を生成してください。'); return; }
+  current = n;
+  [1,2,3].forEach(function(i){
+    document.getElementById('sc'+i).classList.toggle('on', i===n);
+  });
+  var steps = document.querySelectorAll('#steps .step');
+  steps.forEach(function(st){
+    var s = +st.getAttribute('data-s');
+    st.classList.toggle('active', s===n);
+    st.classList.toggle('done', s<n || (s===2 && generated && n===3) || (s===1 && n>1));
+  });
+  if (n === 3) buildEdit();
+  window.scrollTo(0, 0);
+}
+
+/* ========== ステップ②：生成演出 ========== */
+function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+async function startGen() {
+  var btn = document.getElementById('genBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '生成中…';
+  var prog = document.getElementById('progress');
+  prog.style.display = 'block';
+  var rows = prog.children;
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.add('run');
+    rows[i].querySelector('.p-ic').innerHTML = '<span class="spin"></span>';
+    await wait(650 + Math.random() * 450);
+    rows[i].classList.remove('run'); rows[i].classList.add('ok');
+    rows[i].querySelector('.p-ic').textContent = '✓';
+  }
+  await wait(300);
+  document.getElementById('genHero').style.display = 'none';
+  await renderPlan();
+  generated = true;
+  document.getElementById('nav2').style.display = 'flex';
+}
+
+function makeSection(key, editable) {
+  var d = PLAN[key];
+  var sec = document.createElement('div');
+  sec.className = 'plan-sec' + (editable ? ' editable' : '');
+  var h = document.createElement('h3');
+  h.textContent = d.title;
+  if (editable) { var b = document.createElement('span'); b.className = 'edit-badge'; b.textContent = 'タップで編集'; h.appendChild(b); }
+  sec.appendChild(h);
+  var body = document.createElement('div');
+  body.className = 'sec-body'; body.setAttribute('data-key', key);
+  if (editable) body.setAttribute('contenteditable', 'true');
+
+  if (d.type === 'p') {
+    var p = document.createElement('p'); p.className = 'sec-text';
+    if (editable) p.textContent = d.text;
+    body.appendChild(p);
+  } else if (d.type === 'goals') {
+    d.items.forEach(function(g){
+      var gi = document.createElement('div');
+      gi.className = 'goal-item' + (editable ? ' show' : '');
+      gi.innerHTML = '<b></b><span></span>';
+      gi.querySelector('b').textContent = g.b;
+      gi.querySelector('span').textContent = g.s;
+      body.appendChild(gi);
+    });
+  } else if (d.type === 'table') {
+    var wrap = document.createElement('div'); wrap.className = 'tbl-scroll';
+    var t = document.createElement('table'); t.className = 'sup';
+    var tr = document.createElement('tr');
+    d.head.forEach(function(hh){ var th = document.createElement('th'); th.textContent = hh; tr.appendChild(th); });
+    t.appendChild(tr);
+    d.rows.forEach(function(r){
+      var row = document.createElement('tr');
+      row.className = 'row' + (editable ? ' show' : '');
+      r.forEach(function(c){ var td = document.createElement('td'); td.textContent = c; row.appendChild(td); });
+      t.appendChild(row);
+    });
+    wrap.appendChild(t); body.appendChild(wrap);
+  }
+  sec.appendChild(body);
+  return sec;
+}
+
+function typeText(el, text) {
+  return new Promise(function(res){
+    el.classList.add('caret');
+    var i = 0, step = Math.max(2, Math.round(text.length / 55));
+    var tm = setInterval(function(){
+      i = Math.min(text.length, i + step);
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) { clearInterval(tm); el.classList.remove('caret'); res(); }
+    }, 28);
+  });
+}
+
+async function renderPlan() {
+  var out = document.getElementById('planOut');
+  out.innerHTML = '';
+  for (var k = 0; k < ORDER.length; k++) {
+    var key = ORDER[k], d = PLAN[key];
+    var sec = makeSection(key, false);
+    out.appendChild(sec);
+    await wait(60);
+    sec.classList.add('show');
+    if (d.type === 'p') {
+      await typeText(sec.querySelector('.sec-text'), d.text);
+    } else if (d.type === 'goals') {
+      var gis = sec.querySelectorAll('.goal-item');
+      for (var i = 0; i < gis.length; i++) { gis[i].classList.add('show'); await wait(420); }
+    } else if (d.type === 'table') {
+      var rows = sec.querySelectorAll('tr.row');
+      for (var j = 0; j < rows.length; j++) { rows[j].classList.add('show'); await wait(260); }
+    }
+    await wait(180);
+  }
+}
+
+/* ========== ステップ③：編集画面 ========== */
+var editBuilt = false;
+function buildEdit() {
+  if (editBuilt) return;
+  var box = document.getElementById('planEdit');
+  box.innerHTML = '';
+  ORDER.forEach(function(key){
+    var sec = makeSection(key, true);
+    sec.classList.add('show');
+    box.appendChild(sec);
+  });
+  editBuilt = true;
+}
+
+/* ========== 帳票プレビュー ========== */
+function openPreview() {
+  ORDER.forEach(function(key){
+    var src = document.querySelector('#planEdit .sec-body[data-key="' + key + '"]');
+    var dst = document.querySelector('.paper td[data-mirror="' + key + '"]');
+    if (!src || !dst) return;
+    dst.innerHTML = '';
+    var d = PLAN[key];
+    if (d.type === 'table') {
+      var t = src.querySelector('table');
+      if (t) {
+        var clone = t.cloneNode(true);
+        clone.removeAttribute('class');
+        dst.appendChild(clone);
+      }
+    } else if (d.type === 'goals') {
+      src.querySelectorAll('.goal-item').forEach(function(gi){
+        var p = document.createElement('p'); p.className = 'goal-line';
+        var bEl = gi.querySelector('b'), sEl = gi.querySelector('span');
+        p.textContent = (bEl ? bEl.textContent : gi.textContent) + (sEl && sEl.textContent ? '\n（' + sEl.textContent + '）' : '');
+        p.style.whiteSpace = 'pre-wrap';
+        dst.appendChild(p);
+      });
+    } else {
+      dst.textContent = src.textContent;
+    }
+  });
+  document.getElementById('overlay').classList.add('on');
+  document.getElementById('overlay').scrollTop = 0;
+}
+function closePreview(){ document.getElementById('overlay').classList.remove('on'); }
+
+function confirmPlan(btn) {
+  btn.textContent = '✅ 確定しました（デモ）';
+  btn.disabled = true;
+  setTimeout(function(){
+    alert('計画案を確定しました。\n\n実運用では、この後に\n・保護者への説明・同意（電子サイン対応予定）\n・3ヶ月後モニタリングのリマインド登録\nまで自動で進みます。（本デモでは外部送信は行いません）');
+    btn.textContent = '計画案を確定'; btn.disabled = false;
+  }, 400);
+}
+</script>
+</body>
+</html>
