@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>送迎ルート自動最適化デモ｜放課後等デイサービス ひまわり</title>
+  <style>
+    :root { --accent:#2563eb; --v2:#f59e0b; --bg:#f6f7f9; --line:#e3e6ea; --ink:#1f2430; --muted:#6b7280;
+            --ok:#059669; --okbg:#ecfdf5; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+           background:var(--bg); color:var(--ink); }
+    .wrap { max-width:1240px; margin:0 auto; padding:20px 16px 48px; }
+    h1 { font-size:20px; margin:8px 0 4px; }
+    .sub { color:var(--muted); font-size:13px; margin:0 0 18px; }
+    .layout { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:18px; align-items:start; }
+    @media (max-width:980px){ .layout { grid-template-columns:1fr; } }
+
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .card h2 { font-size:14px; margin:0 0 10px; display:flex; align-items:center; gap:6px; }
+
+    /* ---- map ---- */
+    .map-card { padding:12px; }
+    .map-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:2px 4px 10px; }
+    .map-head h2 { margin:0; }
+    .legend { display:flex; gap:12px; font-size:12px; color:var(--muted); align-items:center; }
+    .legend .chip { display:inline-block; width:18px; height:5px; border-radius:3px; vertical-align:middle; margin-right:4px; }
+    .replay { border:1px solid var(--line); background:#fff; color:var(--ink); font-size:12px; font-weight:600;
+              padding:7px 12px; border-radius:9px; cursor:pointer; display:none; }
+    .replay:hover { background:#f3f6fd; }
+    svg#map { width:100%; height:auto; display:block; border-radius:10px; background:#eef1ea; }
+    .halo { paint-order:stroke; stroke:#fff; stroke-width:3.5px; stroke-linejoin:round; }
+    .badge { animation:pop .35s cubic-bezier(.34,1.56,.64,1) both; transform-box:fill-box; transform-origin:center; }
+    @keyframes pop { from { transform:scale(0); } to { transform:scale(1); } }
+    .pulse-ring { transform-box:fill-box; transform-origin:center; animation:ring 2.4s ease-out infinite; }
+    @keyframes ring { 0% { transform:scale(.5); opacity:.55; } 80%,100% { transform:scale(1.6); opacity:0; } }
+    .home.absent { opacity:.32; filter:grayscale(1); }
+    .mapnote { font-size:11px; color:var(--muted); margin:8px 4px 0; }
+
+    /* ---- children list ---- */
+    .kid { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid #f0f2f5; }
+    .kid:last-child { border-bottom:none; }
+    .kid .nm { font-size:14px; font-weight:600; flex:0 0 auto; }
+    .kid .addr { font-size:11px; color:var(--muted); flex:1 1 auto; min-width:0; }
+    .kid .assign { font-size:11px; font-weight:700; flex:0 0 auto; }
+    .kid.absent .nm, .kid.absent .addr { color:#b6bcc6; text-decoration:line-through; }
+    .toggle { flex:0 0 auto; width:46px; height:24px; border-radius:12px; background:#34c759; position:relative;
+              border:none; cursor:pointer; transition:background .18s; }
+    .toggle::after { content:""; position:absolute; top:2px; left:24px; width:20px; height:20px; border-radius:50%;
+                     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .18s; }
+    .toggle.off { background:#d3d7dd; }
+    .toggle.off::after { left:2px; }
+    .tglabel { font-size:11px; color:var(--muted); width:34px; text-align:center; flex:0 0 auto; }
+
+    /* ---- vehicles ---- */
+    .veh { border:1px solid var(--line); border-radius:12px; margin-top:10px; overflow:hidden; }
+    .veh-head { display:flex; align-items:center; gap:8px; padding:10px 12px; font-size:13px; font-weight:700; color:#fff; }
+    .veh-head .cap { margin-left:auto; font-size:11px; font-weight:600; opacity:.9; }
+    .veh-body { padding:10px 12px; font-size:13px; }
+    .veh-body .empty { color:var(--muted); font-size:12px; }
+    .stop { display:flex; align-items:center; gap:8px; padding:5px 0; }
+    .stop .no { width:20px; height:20px; border-radius:50%; color:#fff; font-size:11px; font-weight:700;
+                display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+    .stop .eta { margin-left:auto; font-size:11px; color:var(--muted); }
+    .veh-stats { display:flex; gap:12px; border-top:1px dashed var(--line); margin-top:8px; padding-top:8px;
+                 font-size:11px; color:var(--muted); }
+    .veh-stats b { color:var(--ink); font-size:13px; }
+
+    /* ---- button ---- */
+    .go { width:100%; margin-top:14px; padding:15px; font-size:16px; font-weight:700; color:#fff;
+          background:var(--accent); border:none; border-radius:12px; cursor:pointer; }
+    .go:disabled { opacity:.55; cursor:default; }
+    .go.needs { animation:pulse 1.3s ease infinite; }
+    @keyframes pulse { 0%,100% { box-shadow:0 0 0 0 rgba(37,99,235,.45);} 55% { box-shadow:0 0 0 12px rgba(37,99,235,0);} }
+    .needs-note { display:none; margin-top:8px; font-size:12px; color:#b45309; background:#fffbeb;
+                  border:1px solid #fde68a; border-radius:9px; padding:8px 10px; }
+    .spin { display:inline-block; width:15px; height:15px; border:2px solid #fff; border-top-color:transparent;
+            border-radius:50%; animation:s .7s linear infinite; vertical-align:-2px; margin-right:7px; }
+    @keyframes s { to { transform:rotate(360deg); } }
+
+    /* ---- summary ---- */
+    .summary { display:none; margin-top:14px; }
+    .summary.show { display:block; animation:fadein .4s ease both; }
+    @keyframes fadein { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:none;} }
+    .cmp { display:flex; align-items:center; gap:10px; background:var(--okbg); border:1px solid #a7f3d0;
+           border-radius:10px; padding:10px 12px; margin-top:8px; }
+    .cmp:first-of-type { margin-top:0; }
+    .cmp .lbl { font-size:12px; color:#065f46; width:74px; flex:0 0 auto; }
+    .cmp .before { font-size:14px; color:var(--muted); text-decoration:line-through; }
+    .cmp .arrow { color:#059669; font-weight:700; }
+    .cmp .after { font-size:17px; font-weight:800; color:#065f46; }
+    .cmp .save { margin-left:auto; background:#059669; color:#fff; font-size:11px; font-weight:700;
+                 border-radius:99px; padding:3px 9px; flex:0 0 auto; }
+    .sum-note { font-size:11px; color:var(--muted); margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🚐 送迎ルート自動最適化 <span style="font-size:12px;color:var(--muted);font-weight:400">提案デモ</span></h1>
+    <p class="sub">放課後等デイサービス ひまわり ── 本日の帰宅便を、ボタンひとつで最適な2ルートに自動割り当てします。欠席が出てもワンクリックで組み直し。</p>
+
+    <div class="layout">
+      <!-- ===================== MAP ===================== -->
+      <div class="card map-card">
+        <div class="map-head">
+          <h2>🗺 ルートマップ</h2>
+          <div class="legend">
+            <span><span class="chip" style="background:#2563eb"></span>ハイエース1号車</span>
+            <span><span class="chip" style="background:#f59e0b"></span>ハイエース2号車</span>
+            <button class="replay" id="replayBtn">▶ 走行シミュレーション再生</button>
+          </div>
+        </div>
+
+        <svg id="map" viewBox="0 0 800 560" role="img" aria-label="送迎エリアの地図">
+          <!-- 背景 -->
+          <rect x="0" y="0" width="800" height="560" fill="#eef1ea"/>
+
+          <!-- 街区（うすい建物ブロック） -->
+          <g fill="#e6e9ee" stroke="#dde1e7" stroke-width="1">
+            <rect x="84" y="84" width="42" height="34" rx="3"/>
+            <rect x="134" y="84" width="42" height="34" rx="3"/>
+            <rect x="84" y="126" width="92" height="40" rx="3"/>
+            <rect x="204" y="194" width="42" height="36" rx="3"/>
+            <rect x="252" y="194" width="44" height="82" rx="3"/>
+            <rect x="204" y="238" width="42" height="38" rx="3"/>
+            <rect x="444" y="194" width="40" height="36" rx="3"/>
+            <rect x="490" y="194" width="46" height="36" rx="3"/>
+            <rect x="444" y="238" width="92" height="38" rx="3"/>
+            <rect x="564" y="304" width="92" height="34" rx="3"/>
+            <rect x="564" y="346" width="42" height="40" rx="3"/>
+            <rect x="614" y="346" width="42" height="40" rx="3"/>
+            <rect x="84" y="304" width="92" height="36" rx="3"/>
+            <rect x="84" y="348" width="42" height="38" rx="3"/>
+            <rect x="204" y="414" width="44" height="62" rx="3"/>
+            <rect x="256" y="414" width="40" height="30" rx="3"/>
+            <rect x="324" y="414" width="92" height="30" rx="3"/>
+            <rect x="324" y="84" width="40" height="30" rx="3"/>
+            <rect x="564" y="84" width="92" height="34" rx="3"/>
+            <rect x="444" y="504" width="92" height="36" rx="3"/>
+            <rect x="324" y="504" width="60" height="36" rx="3"/>
+          </g>
+
+          <!-- 川（右上） -->
+          <path d="M 596 -20 C 640 40, 700 60, 810 78" fill="none" stroke="#bcd9f2" stroke-width="30" stroke-linecap="round"/>
+          <path d="M 596 -20 C 640 40, 700 60, 810 78" fill="none" stroke="#cfe6f8" stroke-width="18" stroke-linecap="round"/>
+          <text x="716" y="42" font-size="11" fill="#5b8fbe" class="halo" transform="rotate(9 716 42)">さくら川</text>
+
+          <!-- 公園 -->
+          <rect x="322" y="192" width="96" height="86" rx="10" fill="#d7ead2" stroke="#c3ddbc"/>
+          <ellipse cx="392" cy="252" rx="16" ry="10" fill="#cfe6f8" stroke="#b7d6ee"/>
+          <text x="342" y="228" font-size="16">🌳</text>
+          <text x="366" y="214" font-size="13">🌳</text>
+          <text x="336" y="262" font-size="13">🌳</text>
+          <text x="370" y="244" font-size="10" fill="#4c7a44" class="halo">中央公園</text>
+
+          <!-- 斜め道路（装飾） -->
+          <g>
+            <line x1="430" y1="490" x2="670" y2="290" stroke="#d8dce1" stroke-width="13" stroke-linecap="round"/>
+            <line x1="430" y1="490" x2="670" y2="290" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+            <line x1="430" y1="490" x2="670" y2="290" stroke="#e9ecef" stroke-width="1" stroke-dasharray="7 7"/>
+          </g>
+
+          <!-- 道路網（格子） -->
+          <g id="roads"></g>
+
+          <!-- ルート描画レイヤ -->
+          <g id="routeLayer"></g>
+
+          <!-- 施設 -->
+          <g id="facility">
+            <circle class="pulse-ring" cx="430" cy="290" r="22" fill="#2563eb" opacity=".4"/>
+            <rect x="404" y="268" width="52" height="40" rx="9" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+            <text x="430" y="297" font-size="24" text-anchor="middle">🏫</text>
+            <text x="430" y="326" font-size="12" font-weight="700" text-anchor="middle" fill="#1d4ed8" class="halo">放課後等デイサービス ひまわり</text>
+          </g>
+
+          <!-- 児童宅ピン -->
+          <g id="homes"></g>
+
+          <!-- 訪問順バッジ -->
+          <g id="badgeLayer"></g>
+
+          <!-- 車 -->
+          <g id="carLayer"></g>
+        </svg>
+        <p class="mapnote">※ 地図・氏名・住所はすべてデモ用の架空データです。実運用では実際の住所から自動で経路を取得します。</p>
+      </div>
+
+      <!-- ===================== PANEL ===================== -->
+      <div>
+        <div class="card">
+          <h2>👧 本日の送迎対象（帰宅便）<span id="kidCount" style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:400"></span></h2>
+          <div id="kidList"></div>
+
+          <h2 style="margin-top:18px">🚐 車両</h2>
+          <div class="veh">
+            <div class="veh-head" style="background:#2563eb">🚐 ハイエース 1号車 <span class="cap">定員4名</span></div>
+            <div class="veh-body" id="veh0"><div class="empty">ルート未作成</div></div>
+          </div>
+          <div class="veh">
+            <div class="veh-head" style="background:#f59e0b">🚐 ハイエース 2号車 <span class="cap">定員4名</span></div>
+            <div class="veh-body" id="veh1"><div class="empty">ルート未作成</div></div>
+          </div>
+
+          <button class="go" id="goBtn">⚡ ルート自動作成</button>
+          <div class="needs-note" id="needsNote">⚠️ 出欠が変わりました。「ルート自動作成」を押すと即座に組み直します。</div>
+        </div>
+
+        <div class="card summary" id="summary">
+          <h2>📊 効果（手組み比）</h2>
+          <div class="cmp">
+            <span class="lbl">作成時間</span>
+            <span class="before">40分</span><span class="arrow">→</span><span class="after">3秒</span>
+            <span class="save">−99.9%</span>
+          </div>
+          <div class="cmp">
+            <span class="lbl">総走行距離</span>
+            <span class="before" id="beforeKm">18.2km</span><span class="arrow">→</span><span class="after" id="afterKm">14.6km</span>
+            <span class="save" id="saveKm">−20%</span>
+          </div>
+          <div class="cmp">
+            <span class="lbl">担当職員</span>
+            <span class="before">毎日1名が専任</span><span class="arrow">→</span><span class="after">不要</span>
+            <span class="save">自動化</span>
+          </div>
+          <p class="sum-note">※ 作成時間・手組み距離は導入前ヒアリングの平均値。距離は実測ルートに基づく試算です。年間換算：ルート作成 約160時間／燃料費 約18%の削減見込み。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    /* ================= データ（SVG固定座標・すべて架空） ================= */
+    var FACILITY = { x:430, y:290 };
+    var CHILDREN = [
+      { id:'tanaka',    name:'田中',  addr:'みどり町 1-2',   x:310, y:70  },
+      { id:'sato',      name:'佐藤',  addr:'あおば台 3-15',  x:70,  y:180 },
+      { id:'suzuki',    name:'鈴木',  addr:'ひばりが丘 2-8', x:190, y:490 },
+      { id:'takahashi', name:'高橋',  addr:'あおば台 5-1',   x:70,  y:400 },
+      { id:'ito',       name:'伊藤',  addr:'かわせみ町 1-6', x:550, y:70  },
+      { id:'watanabe',  name:'渡辺',  addr:'かわせみ町 4-9', x:670, y:180 },
+      { id:'yamamoto',  name:'山本',  addr:'さくら台 6-3',   x:670, y:490 },
+      { id:'nakamura',  name:'中村',  addr:'さくら台 2-11',  x:550, y:400 }
+    ];
+    var VX = [70, 190, 310, 430, 550, 670];   // 縦道路のx
+    var HY = [70, 180, 290, 400, 490];        // 横道路のy
+    var VEHICLES = [
+      { name:'ハイエース 1号車', color:'#2563eb', off:-3.5 },
+      { name:'ハイエース 2号車', color:'#f59e0b', off: 3.5 }
+    ];
+    var CAPACITY = 4;
+    var SCALE_M_PER_PX = 5;      // 1px = 5m
+    var SPEED_KMH = 25;          // 平均車速
+    var STOP_MIN = 1.5;          // 1軒あたりの停車時間（分）
+
+    var absent = {};             // id -> true
+    var hasResult = false;
+    var timers = [];
+    var rafIds = [];
+    var lastRoutes = null;       // 再生用
+
+    var SVGNS = 'http://www.w3.org/2000/svg';
+    function el(tag, attrs, parent){
+      var e = document.createElementNS(SVGNS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (parent) parent.appendChild(e);
+      return e;
+    }
+    function $(id){ return document.getElementById(id); }
+
+    /* ================= 道路網の描画 ================= */
+    (function drawRoads(){
+      var g = $('roads');
+      function road(x1,y1,x2,y2,main){
+        el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke: main?'#e3d9b8':'#d8dce1','stroke-width': main?17:13,'stroke-linecap':'round'},g);
+      }
+      var i;
+      for (i=0;i<VX.length;i++) road(VX[i],40,VX[i],540, VX[i]===430);
+      for (i=0;i<HY.length;i++) road(40,HY[i],770,HY[i], HY[i]===290);
+      function inner(x1,y1,x2,y2,main){
+        el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke: main?'#fdf6dd':'#ffffff','stroke-width': main?12:9,'stroke-linecap':'round'},g);
+        el('line',{x1:x1,y1:y1,x2:x2,y2:y2,stroke:'#e9ecef','stroke-width':1,'stroke-dasharray':'7 7'},g);
+      }
+      for (i=0;i<VX.length;i++) inner(VX[i],40,VX[i],540, VX[i]===430);
+      for (i=0;i<HY.length;i++) inner(40,HY[i],770,HY[i], HY[i]===290);
+    })();
+
+    /* ================= 児童宅ピンの描画 ================= */
+    (function drawHomes(){
+      var g = $('homes');
+      CHILDREN.forEach(function(c){
+        var home = el('g',{id:'home-'+c.id, 'class':'home'},g);
+        el('circle',{cx:c.x, cy:c.y, r:4, fill:'#dc2626', opacity:.35},home);
+        var pin = el('text',{x:c.x, y:c.y, 'text-anchor':'middle','font-size':22},home);
+        pin.textContent = '📍';
+        var lb = el('text',{x:c.x, y:c.y+16,'text-anchor':'middle','font-size':11.5,'font-weight':'700',
+                            fill:'#374151','class':'halo'},home);
+        lb.textContent = c.name;
+      });
+    })();
+
+    /* ================= 児童リストUI ================= */
+    (function buildKidList(){
+      var box = $('kidList');
+      CHILDREN.forEach(function(c){
+        var row = document.createElement('div');
+        row.className = 'kid'; row.id = 'kid-' + c.id;
+        row.innerHTML =
+          '<span class="nm">' + c.name + 'さん</span>' +
+          '<span class="addr">' + c.addr + '</span>' +
+          '<span class="assign" id="assign-' + c.id + '"></span>' +
+          '<span class="tglabel" id="tgl-' + c.id + '">出席</span>' +
+          '<button type="button" class="toggle" aria-label="' + c.name + 'さんの出欠切替" id="tg-' + c.id + '"></button>';
+        box.appendChild(row);
+        document.getElementById('tg-' + c.id).addEventListener('click', function(){ toggleAbsent(c.id); });
+      });
+      updateCount();
+    })();
+
+    function toggleAbsent(id){
+      absent[id] = !absent[id];
+      var off = absent[id];
+      $('tg-'+id).classList.toggle('off', off);
+      $('tgl-'+id).textContent = off ? '欠席' : '出席';
+      $('kid-'+id).classList.toggle('absent', off);
+      var home = $('home-'+id);
+      if (home) home.classList.toggle('absent', off);
+      $('assign-'+id).textContent = '';
+      updateCount();
+      if (hasResult){
+        $('goBtn').classList.add('needs');
+        $('needsNote').style.display = 'block';
+      }
+    }
+    function updateCount(){
+      var n = CHILDREN.filter(function(c){ return !absent[c.id]; }).length;
+      $('kidCount').textContent = '出席 ' + n + '名 / 全' + CHILDREN.length + '名';
+    }
+
+    /* ================= 距離・経路計算 ================= */
+    function manh(a,b){ return Math.abs(a.x-b.x) + Math.abs(a.y-b.y); }
+
+    // 最近傍法：施設を起点に、空きのある車両×未割当児童のうち最短ペアから割当
+    function assignChildren(kids){
+      var v = [ {pos:FACILITY, list:[]}, {pos:FACILITY, list:[]} ];
+      var cap = Math.min(CAPACITY, Math.ceil(kids.length/2)); // 台数を活かして負荷を平準化
+      var rest = kids.slice();
+      while (rest.length){
+        var best = null;
+        for (var vi=0; vi<2; vi++){
+          if (v[vi].list.length >= cap) continue;
+          for (var j=0; j<rest.length; j++){
+            var d = manh(v[vi].pos, rest[j]);
+            if (!best || d < best.d) best = {vi:vi, j:j, d:d};
+          }
+        }
+        if (!best) break; // 全車満員（本デモでは発生しない）
+        var c = rest.splice(best.j,1)[0];
+        v[best.vi].list.push(c);
+        v[best.vi].pos = c;
+      }
+      return [v[0].list, v[1].list];
+    }
+
+    // 2-opt改善（施設発→各戸→施設着の巡回路）
+    function twoOpt(stops){
+      if (stops.length < 3) return stops;
+      var route = [FACILITY].concat(stops, [FACILITY]);
+      var improved = true;
+      while (improved){
+        improved = false;
+        for (var i=1; i<route.length-2; i++){
+          for (var k=i+1; k<route.length-1; k++){
+            var delta = manh(route[i-1],route[k]) + manh(route[i],route[k+1])
+                      - manh(route[i-1],route[i]) - manh(route[k],route[k+1]);
+            if (delta < -0.01){
+              var mid = route.slice(i,k+1).reverse();
+              route = route.slice(0,i).concat(mid, route.slice(k+1));
+              improved = true;
+            }
+          }
+        }
+      }
+      return route.slice(1,-1);
+    }
+
+    // 2点間を道路格子に沿ったL字経路に変換（hFirst: 横→縦 / 縦→横）
+    function legPoints(a, b, hFirst){
+      if (a.x===b.x && a.y===b.y) return [];
+      if (hFirst) return [{x:b.x,y:a.y},{x:b.x,y:b.y}];
+      return [{x:a.x,y:b.y},{x:b.x,y:b.y}];
+    }
+    function buildPath(stops, hFirst){
+      var pts = [{x:FACILITY.x,y:FACILITY.y}];
+      var seq = stops.concat([FACILITY]);
+      for (var i=0;i<seq.length;i++){
+        var add = legPoints(pts[pts.length-1], seq[i], hFirst);
+        for (var j=0;j<add.length;j++){
+          var last = pts[pts.length-1];
+          if (add[j].x!==last.x || add[j].y!==last.y) pts.push(add[j]);
+        }
+      }
+      // 直線上の冗長点を除去
+      var out = [pts[0]];
+      for (i=1;i<pts.length-1;i++){
+        var p0=out[out.length-1], p1=pts[i], p2=pts[i+1];
+        var col = (p0.x===p1.x && p1.x===p2.x) || (p0.y===p1.y && p1.y===p2.y);
+        if (!col) out.push(p1);
+      }
+      out.push(pts[pts.length-1]);
+      return out;
+    }
+    function pathLen(pts){
+      var L=0; for (var i=1;i<pts.length;i++) L += manh(pts[i-1],pts[i]);
+      return L;
+    }
+
+    /* ================= 描画・アニメーション ================= */
+    function clearAnim(){
+      timers.forEach(clearTimeout); timers = [];
+      rafIds.forEach(cancelAnimationFrame); rafIds = [];
+      $('routeLayer').innerHTML = '';
+      $('badgeLayer').innerHTML = '';
+      $('carLayer').innerHTML = '';
+    }
+
+    function drawRoute(vi, stops, delayMs){
+      var v = VEHICLES[vi];
+      var pts = buildPath(stops, vi===0).map(function(p){ return {x:p.x+v.off, y:p.y+v.off}; });
+      var d = 'M ' + pts.map(function(p){ return p.x+' '+p.y; }).join(' L ');
+      var glow = el('path',{d:d, fill:'none', stroke:v.color, 'stroke-width':10, opacity:.18,
+                            'stroke-linejoin':'round','stroke-linecap':'round'}, $('routeLayer'));
+      var path = el('path',{d:d, fill:'none', stroke:v.color, 'stroke-width':5, opacity:.95,
+                            'data-veh':vi, 'stroke-linejoin':'round','stroke-linecap':'round'}, $('routeLayer'));
+      var len = path.getTotalLength();
+      [glow, path].forEach(function(p){
+        p.style.strokeDasharray = len;
+        p.style.strokeDashoffset = len;
+      });
+      var drawMs = Math.max(1100, Math.min(2200, len*1.6));
+
+      timers.push(setTimeout(function(){
+        [glow, path].forEach(function(p){
+          p.style.transition = 'stroke-dashoffset ' + drawMs + 'ms ease-in-out';
+          p.style.strokeDashoffset = 0;
+        });
+        // 線が各戸を通過したタイミングで訪問順バッジを表示
+        var cum = 0, prev = FACILITY;
+        stops.forEach(function(c, i){
+          cum += manh(prev, c); prev = c;
+          var at = drawMs * (cum/len);
+          timers.push(setTimeout(function(){ addBadge(c, i+1, v.color); }, at));
+        });
+        // 描画完了後に車を走らせる
+        timers.push(setTimeout(function(){ runCar(path, len, v); }, drawMs + 250));
+      }, delayMs));
+
+      return { path:path, len:len, drawMs:drawMs };
+    }
+
+    function addBadge(c, no, color){
+      var g = el('g',{'class':'badge', transform:'translate('+(c.x+16)+','+(c.y-20)+')'}, $('badgeLayer'));
+      el('circle',{cx:0, cy:0, r:10, fill:color, stroke:'#fff','stroke-width':2.5},g);
+      var t = el('text',{x:0, y:4,'text-anchor':'middle','font-size':11,'font-weight':'700',fill:'#fff'},g);
+      t.textContent = no;
+    }
+
+    function runCar(path, len, v){
+      var car = el('g',{}, $('carLayer'));
+      el('circle',{cx:0, cy:0, r:13, fill:'#fff', stroke:v.color, 'stroke-width':2.5},car);
+      var t = el('text',{x:0, y:5,'text-anchor':'middle','font-size':15},car);
+      t.textContent = '🚐';
+      var dur = Math.max(3500, Math.min(6500, len*4.5));
+      var t0 = performance.now();
+      function step(now){
+        var r = (now - t0) / dur;
+        if (r > 1) r = 1;
+        var e = r<.5 ? 2*r*r : 1-Math.pow(-2*r+2,2)/2; // easeInOutQuad
+        var p = path.getPointAtLength(len * e);
+        car.setAttribute('transform','translate('+p.x+','+p.y+')');
+        if (r < 1) rafIds.push(requestAnimationFrame(step));
+        else timers.push(setTimeout(function(){ if (car.parentNode) car.parentNode.removeChild(car); }, 800));
+      }
+      rafIds.push(requestAnimationFrame(step));
+    }
+
+    /* ================= 車両カード・サマリー ================= */
+    function fmtMin(m){ return Math.round(m) + '分'; }
+    function renderVehicle(vi, stops){
+      var v = VEHICLES[vi], box = $('veh'+vi);
+      if (!stops.length){
+        box.innerHTML = '<div class="empty">本日の割当なし</div>';
+        return { km:0, min:0 };
+      }
+      var html = '<div class="stop"><span class="no" style="background:'+v.color+'">出</span>'
+               + '<span>ひまわり 出発</span><span class="eta">16:30</span></div>';
+      var cum = 0, prev = FACILITY;
+      var mPerMin = SPEED_KMH * 1000 / 60;
+      stops.forEach(function(c,i){
+        cum += manh(prev,c); prev = c;
+        var etaMin = (cum*SCALE_M_PER_PX)/mPerMin + i*STOP_MIN;
+        html += '<div class="stop"><span class="no" style="background:'+v.color+'">'+(i+1)+'</span>'
+              + '<span>'+c.name+'さん宅（'+c.addr+'）</span><span class="eta">+'+fmtMin(etaMin)+'</span></div>';
+        $('assign-'+c.id).innerHTML = '<span style="color:'+v.color+'">●</span> '+(vi+1)+'号車 '+(i+1)+'番';
+      });
+      var totalPx = cum + manh(prev, FACILITY);
+      var km = totalPx * SCALE_M_PER_PX / 1000;
+      var totalMin = (totalPx*SCALE_M_PER_PX)/mPerMin + stops.length*STOP_MIN;
+      html += '<div class="stop"><span class="no" style="background:'+v.color+'">着</span>'
+            + '<span>ひまわり 帰着</span><span class="eta">+'+fmtMin(totalMin)+'</span></div>';
+      html += '<div class="veh-stats"><span>乗車 <b>'+stops.length+'名</b></span>'
+            + '<span>走行 <b>'+km.toFixed(1)+'km</b></span>'
+            + '<span>所要 <b>約'+fmtMin(totalMin)+'</b></span></div>';
+      box.innerHTML = html;
+      return { km:km, min:totalMin };
+    }
+
+    function renderSummary(totalKm){
+      var before = Math.round(totalKm * 1.25 * 10) / 10;
+      var save = Math.round((1 - totalKm/before) * 100);
+      $('beforeKm').textContent = before.toFixed(1) + 'km';
+      $('afterKm').textContent = totalKm.toFixed(1) + 'km';
+      $('saveKm').textContent = '−' + save + '%';
+      $('summary').classList.add('show');
+    }
+
+    /* ================= メイン処理 ================= */
+    function calculate(){
+      var kids = CHILDREN.filter(function(c){ return !absent[c.id]; });
+      var btn = $('goBtn');
+      btn.classList.remove('needs');
+      $('needsNote').style.display = 'none';
+
+      if (!kids.length){
+        clearAnim();
+        $('veh0').innerHTML = '<div class="empty">本日の割当なし</div>';
+        $('veh1').innerHTML = '<div class="empty">本日の割当なし</div>';
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin"></span>最適ルートを計算中…';
+
+      timers.push(setTimeout(function(){
+        clearAnim();
+        var groups = assignChildren(kids).map(twoOpt);
+        lastRoutes = groups;
+
+        var totalKm = 0;
+        groups.forEach(function(stops, vi){
+          var stat = renderVehicle(vi, stops);
+          totalKm += stat.km;
+        });
+        kids.length && renderSummary(totalKm);
+
+        // ルートを1台目→2台目の順にアニメーション描画
+        var delay = 100;
+        groups.forEach(function(stops, vi){
+          if (!stops.length) return;
+          var r = drawRoute(vi, stops, delay);
+          delay += r.drawMs + 400;
+        });
+
+        $('replayBtn').style.display = 'inline-block';
+        hasResult = true;
+        btn.disabled = false;
+        btn.innerHTML = '⚡ ルート自動作成（再計算）';
+      }, 700)); // デモ演出用のわずかな計算時間
+    }
+
+    function replay(){
+      if (!lastRoutes) return;
+      timers.forEach(clearTimeout); timers = [];
+      rafIds.forEach(cancelAnimationFrame); rafIds = [];
+      $('carLayer').innerHTML = '';
+      lastRoutes.forEach(function(stops, vi){
+        if (!stops.length) return;
+        var p = $('routeLayer').querySelector('path[data-veh="' + vi + '"]');
+        if (p) runCar(p, p.getTotalLength(), VEHICLES[vi]);
+      });
+    }
+
+    $('goBtn').addEventListener('click', calculate);
+    $('replayBtn').addEventListener('click', replay);
+  </script>
+</body>
+</html>
