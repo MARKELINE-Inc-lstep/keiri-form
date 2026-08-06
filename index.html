@@ -36,6 +36,8 @@
     .msg { margin-top:16px; padding:14px; border-radius:10px; font-size:14px; white-space:pre-wrap; display:none; }
     .msg.ok { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
     .msg.ng { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    .foot { margin-top:20px; font-size:12px; color:var(--muted); line-height:1.8; }
+    .foot a { color:var(--accent); font-weight:600; }
     .spin { display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent;
             border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:6px; }
     @keyframes s { to { transform:rotate(360deg); } }
@@ -78,6 +80,10 @@
       </form>
       <div class="msg" id="msg"></div>
     </div>
+
+    <p class="foot">出張の領収書（交通費・宿泊費・レンタカー代など）は
+      <a href="shutcho.html">✈️ 出張精算アップロード</a> から送ると、
+      出張名・費目つきで保存され、Notion「出張費まとめ」用のテキストも作られます。</p>
   </div>
 
   <!-- GASへ確実に届ける隠しフォーム＋iフレーム（fetchを使わずCORSを回避） -->

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>出張精算アップロード</title>
+  <style>
+    :root { --accent:#2563eb; --bg:#f6f7f9; --line:#e3e6ea; --ink:#1f2430; --muted:#6b7280; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+           background:var(--bg); color:var(--ink); }
+    .wrap { max-width:560px; margin:0 auto; padding:20px 16px 40px; }
+    h1 { font-size:18px; margin:8px 0 4px; }
+    .sub { color:var(--muted); font-size:13px; margin:0 0 20px; line-height:1.7; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 16px; }
+    label { display:block; font-size:13px; font-weight:600; margin:16px 0 6px; }
+    label:first-of-type { margin-top:0; }
+    .req { color:#dc2626; font-size:11px; margin-left:4px; }
+    .opt { color:var(--muted); font-weight:400; }
+    select, input[type=text], input[type=date], input[type=number] {
+      width:100%; padding:13px 12px; font-size:16px; border:1px solid var(--line);
+      border-radius:10px; background:#fff; color:var(--ink); appearance:none; }
+    .file-zone { border:2px dashed #c7ccd3; border-radius:12px; padding:22px 12px; text-align:center;
+                 color:var(--muted); font-size:14px; background:#fafbfc; }
+    .file-zone input { display:none; }
+    .file-btn { display:inline-block; margin-top:8px; background:var(--accent); color:#fff;
+                padding:11px 18px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; }
+    #fileList { margin:10px 0 0; font-size:13px; text-align:left; }
+    #fileList div { padding:6px 10px; background:#eef2ff; border-radius:8px; margin-top:6px; }
+    .seg { display:flex; flex-wrap:wrap; gap:8px; }
+    .seg button { flex:1 1 30%; padding:12px 6px; font-size:14px; font-weight:600; border:1px solid var(--line);
+                  background:#fff; border-radius:10px; cursor:pointer; color:var(--ink); }
+    .seg button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+    #otherTripRow { display:none; }
+    .submit { width:100%; margin-top:24px; padding:15px; font-size:16px; font-weight:700; color:#fff;
+              background:var(--accent); border:none; border-radius:12px; cursor:pointer; }
+    .submit:disabled { opacity:.5; }
+    .msg { margin-top:16px; padding:14px; border-radius:10px; font-size:14px; white-space:pre-wrap; display:none; }
+    .msg.ok { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+    .msg.ng { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+    .notion { display:none; margin-top:14px; background:#fff; border:1px solid var(--line);
+              border-radius:12px; padding:14px 16px; }
+    .notion h2 { font-size:14px; margin:0 0 8px; }
+    .notion pre { margin:0; padding:12px; background:#f6f7f9; border-radius:10px; font-size:13px;
+                  line-height:1.7; white-space:pre-wrap; word-break:break-all; }
+    .notion .row { display:flex; gap:8px; margin-top:10px; }
+    .notion .row button, .notion .row a { flex:1; padding:11px; font-size:14px; font-weight:600;
+      border:1px solid var(--line); background:#fff; border-radius:10px; cursor:pointer; color:var(--ink);
+      text-align:center; text-decoration:none; display:block; }
+    .spin { display:inline-block; width:16px; height:16px; border:2px solid #fff; border-top-color:transparent;
+            border-radius:50%; animation:s .7s linear infinite; vertical-align:-3px; margin-right:6px; }
+    @keyframes s { to { transform:rotate(360deg); } }
+    .foot { margin-top:20px; font-size:12px; color:var(--muted); line-height:1.8; }
+    .foot a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>✈️ 出張精算アップロード</h1>
+    <p class="sub">出張・費目を選んで領収書を送るだけ。経理の「3.領収書（受領）」フォルダに自動保存され、<br>
+    Notion「出張費まとめ」に貼るテキストも同時に作られます。</p>
+
+    <div class="card">
+      <form id="f">
+        <label>出張 <span class="req">必須</span></label>
+        <select id="trip" required><option value="">選択してください</option></select>
+
+        <div id="otherTripRow">
+          <label>出張名（手入力） <span class="req">必須</span></label>
+          <input type="text" id="tripOther" placeholder="例）名古屋出張(2026年9月1日〜3日)">
+        </div>
+
+        <label>費目 <span class="req">必須</span></label>
+        <div class="seg" id="kindSeg"></div>
+
+        <label>利用日 <span class="opt">（任意）</span></label>
+        <input type="date" id="hiduke">
+
+        <label>支払先 <span class="opt">（任意）</span></label>
+        <input type="text" id="torihiki" placeholder="例）ニッポンレンタカー">
+
+        <label>金額（円） <span class="opt">（任意・分かる分だけ）</span></label>
+        <input type="number" id="kingaku" inputmode="numeric" placeholder="例）43284">
+
+        <label>メモ <span class="opt">（任意）</span></label>
+        <input type="text" id="memo" placeholder="例）2泊分・朝食付き">
+
+        <label>領収書 <span class="req">必須</span></label>
+        <div class="file-zone">
+          写真・PDFを選択（複数OK）
+          <label class="file-btn">ファイルを選ぶ / 撮影
+            <input type="file" id="files" accept="image/*,application/pdf" multiple onchange="showFiles()">
+          </label>
+          <div id="fileList"></div>
+        </div>
+
+        <button type="submit" class="submit" id="go">アップロード</button>
+      </form>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="notion" id="notionBox">
+      <h2>📋 Notion「出張費まとめ」貼り付け用</h2>
+      <pre id="notionText"></pre>
+      <div class="row">
+        <button type="button" id="copyBtn" onclick="copyNotion()">コピー</button>
+        <a href="https://www.notion.so/38d0f74337fd8149becbd634089b7e88" target="_blank" rel="noopener">出張費まとめを開く</a>
+      </div>
+    </div>
+
+    <p class="foot">
+      経理書類全般のアップロードは <a href="index.html">📂 経理書類アップロード</a> から。<br>
+      出張の詳細メモ（航空券・ホテル・レンタカーの予約情報）は Notion「出張管理秘書室」で管理しています。
+    </p>
+  </div>
+
+  <!-- GASへ確実に届ける隠しフォーム＋iフレーム（index.html と同じ経路・同じエンドポイント） -->
+  <iframe name="sink" id="sink" style="display:none"></iframe>
+  <form id="gform" method="POST"
+        action="https://script.google.com/macros/s/AKfycbwERXxZ1WDAFfy7aQbSrCdeUge7BN10gP3yxpxzlNTP1ccREwQ2YNXfR211cb216SHn/exec"
+        target="sink" style="display:none">
+    <input type="hidden" name="category" id="h_category">
+    <input type="hidden" name="direction" id="h_direction">
+    <input type="hidden" name="torihiki" id="h_torihiki">
+    <input type="hidden" name="memo" id="h_memo">
+    <input type="hidden" name="filename" id="h_filename">
+    <input type="hidden" name="mimeType" id="h_mimeType">
+    <input type="hidden" name="data" id="h_data">
+  </form>
+
+  <script>
+    // Notion「出張管理秘書室」の出張ページに対応。出張が増えたらここに1行足すだけ。
+    var TRIPS = [
+      {label:'青森・札幌出張(2026年8月3日〜7日)', on:true},
+      {label:'セブ出張(2026年10月30日〜11月4日)', on:true},
+      {label:'東京出張・ビッグサイト展示会(2026年6月24日〜26日)', on:false},
+      {label:'新大阪出張・マーケティング合宿(2026年6月16日〜18日)', on:false},
+      {label:'東京出張(2026年6月7日〜9日)', on:false},
+      {label:'福岡出張(2026年5月27日〜30日)', on:false}
+    ];
+    // 「出張費まとめ」の収録方針に合わせた費目
+    var KINDS = ['交通費','宿泊費','レンタカー代','駐車場代','会食費','その他'];
+
+    var kind = '';
+    var sel = document.getElementById('trip');
+    TRIPS.forEach(function(t){
+      var o = document.createElement('option');
+      o.value = t.label;
+      o.textContent = t.label + (t.on ? '' : '（アーカイブ）');
+      sel.appendChild(o);
+    });
+    var oth = document.createElement('option');
+    oth.value = '__other__'; oth.textContent = 'その他（手入力）';
+    sel.appendChild(oth);
+
+    sel.addEventListener('change', function(){
+      document.getElementById('otherTripRow').style.display = this.value === '__other__' ? 'block' : 'none';
+    });
+
+    var seg = document.getElementById('kindSeg');
+    KINDS.forEach(function(k){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = k; b.setAttribute('data-v', k);
+      b.onclick = function(){ pickKind(b); };
+      seg.appendChild(b);
+    });
+    function pickKind(btn){ clearKind(); btn.classList.add('on'); kind = btn.getAttribute('data-v'); }
+    function clearKind(){ var b=seg.querySelectorAll('button'); for(var i=0;i<b.length;i++)b[i].classList.remove('on'); }
+
+    function showFiles(){ var fs=document.getElementById('files').files, box=document.getElementById('fileList'); box.innerHTML='';
+      for(var i=0;i<fs.length;i++){ var d=document.createElement('div'); d.textContent='📄 '+fs[i].name; box.appendChild(d); } }
+
+    function toBase64(file){ return new Promise(function(res,rej){ var r=new FileReader();
+      r.onload=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(file); }); }
+
+    function tripName(){
+      var v = sel.value;
+      return v === '__other__' ? document.getElementById('tripOther').value.trim() : v;
+    }
+    function yen(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    // ファイル名に使えない文字を落とす（Googleドライブ上で崩れないように）
+    function safe(s){ return String(s).replace(/[\\\/:*?"<>|]/g,'-').replace(/\s+/g,'_'); }
+
+    // 隠しフォームをiフレームへPOST。iフレームのloadで完了を待つ（CORSの影響を受けない確実な方式）
+    function postViaForm(v){
+      return new Promise(function(resolve){
+        var iframe=document.getElementById('sink'), settled=false;
+        function finish(){ if(settled)return; settled=true; iframe.onload=null; resolve(); }
+        iframe.onload=finish;
+        document.getElementById('h_category').value=v.category;
+        document.getElementById('h_direction').value=v.direction;
+        document.getElementById('h_torihiki').value=v.torihiki;
+        document.getElementById('h_memo').value=v.memo;
+        document.getElementById('h_filename').value=v.filename;
+        document.getElementById('h_mimeType').value=v.mimeType;
+        document.getElementById('h_data').value=v.data;
+        document.getElementById('gform').submit();
+        setTimeout(finish, 12000); // 念のためのフォールバック
+      });
+    }
+
+    document.getElementById('f').addEventListener('submit', async function(e){
+      e.preventDefault();
+      var msg=document.getElementById('msg'), btn=document.getElementById('go');
+      var trip=tripName(), files=document.getElementById('files').files;
+      var hiduke=document.getElementById('hiduke').value;
+      var torihiki=document.getElementById('torihiki').value.trim();
+      var kingaku=document.getElementById('kingaku').value.trim();
+      var memo=document.getElementById('memo').value.trim();
+
+      if(!trip) return flash(msg,'ng','出張を選択（または入力）してください');
+      if(!kind) return flash(msg,'ng','費目を選択してください');
+      if(!files.length) return flash(msg,'ng','領収書ファイルを選択してください');
+
+      // 既存の仕分けルールにそのまま乗せる：領収書＝受領
+      var parts = ['[出張] '+trip, kind];
+      if(hiduke) parts.push(hiduke);
+      if(kingaku) parts.push(yen(kingaku)+'円');
+      if(torihiki) parts.push(torihiki);
+      if(memo) parts.push(memo);
+      var fullMemo = parts.join(' / ');
+      var prefix = (hiduke ? hiduke.replace(/-/g,'') + '_' : '') + safe(trip) + '_' + safe(kind)
+                 + (kingaku ? '_' + kingaku + '円' : '') + '_';
+
+      btn.disabled=true; btn.innerHTML='<span class="spin"></span>送信中…';
+      try {
+        for(var i=0;i<files.length;i++){
+          var b64=await toBase64(files[i]);
+          await postViaForm({
+            category:'3.領収書', direction:'受領',
+            torihiki:torihiki, memo:fullMemo,
+            filename:prefix+files[i].name,
+            mimeType:files[i].type||'application/octet-stream',
+            data:b64
+          });
+        }
+        flash(msg,'ok','✅ '+files.length+'件を送信しました。数秒でGoogleドライブ（3.領収書／受領）に保存されます。');
+        showNotion(trip, kind, kingaku, hiduke, torihiki, memo);
+        document.getElementById('f').reset(); showFiles(); clearKind(); kind='';
+        document.getElementById('otherTripRow').style.display='none';
+      } catch(err){ flash(msg,'ng','送信エラー: '+err.message); }
+      btn.disabled=false; btn.textContent='アップロード';
+    });
+
+    // 「出張費まとめ」の記法（出張別 → 費目: 金額）に合わせて生成。金額不明は方針どおり「未記入」
+    function showNotion(trip, kind, kingaku, hiduke, torihiki, memo){
+      var detail = [];
+      if(hiduke) detail.push(hiduke);
+      if(torihiki) detail.push(torihiki);
+      if(memo) detail.push(memo);
+      var line = '### ' + trip + '\n'
+               + '- ' + kind + ': ' + (kingaku ? yen(kingaku)+'円' : '未記入')
+               + (detail.length ? '（' + detail.join(' / ') + '）' : '') + '\n'
+               + '- 領収書: Googleドライブ「3.領収書／受領」に保存済み';
+      document.getElementById('notionText').textContent = line;
+      document.getElementById('notionBox').style.display = 'block';
+      document.getElementById('copyBtn').textContent = 'コピー';
+    }
+
+    function copyNotion(){
+      var t = document.getElementById('notionText').textContent, b = document.getElementById('copyBtn');
+      function done(){ b.textContent = '✅ コピーしました'; }
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t).then(done, fallback);
+      } else { fallback(); }
+      function fallback(){
+        var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+        ta.select(); try { document.execCommand('copy'); done(); } catch(e){}
+        document.body.removeChild(ta);
+      }
+    }
+
+    function flash(el,cls,t){ el.className='msg '+cls; el.textContent=t; el.style.display='block'; window.scrollTo(0,document.body.scrollHeight); }
+  </script>
+</body>
+</html>
