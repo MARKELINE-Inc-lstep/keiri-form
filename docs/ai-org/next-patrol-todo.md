@@ -15,7 +15,8 @@
 
 ## GO待ち(藤原さん)
 - 改善会議シート配布(共有設定→貼るだけ・会議9/4 14:30)/星川さん返信(未完了業務の内容ヒアリング要)/億ごえ受講者ページOK→今岡さんへLINE送信/野口あかねさんクレカ回答/川向さん件は井上さんへ進捗確認
-- **藤原さんTODO(業務効率化による窓口離脱計画)をNotionに記録済み**(https://app.notion.com/p/3d10f74337fd8170ae3ec3cba4166e26 )。Googleスプレッドシートへの直接セル書き込み手段がないため記録場所をNotionにした。未確定事項: ①億ごえ引き継ぎの業務範囲、③顧客接点離脱の対象案件リスト化、⑥TODO管理ツール「コツコツ」(黒崎さんがGitHubに上げたもの)のリポジトリ場所・使い方を黒崎さんに確認して運用開始手順を整理する
+- **藤原さんTODO(業務効率化による窓口離脱計画)をNotionに記録済み**(https://app.notion.com/p/3d10f74337fd8170ae3ec3cba4166e26 )。Googleスプレッドシートへの直接セル書き込み手段がないため記録場所をNotionにした。未確定事項: ①億ごえ引き継ぎの業務範囲、③顧客接点離脱の対象案件リスト化
+- **「コツコツ」ツール=`markeline-inc-lstep/todo-secretary`(リポジトリ名「TODO秘書」・黒崎優斗さん作成)と確認済み(9/4)**。Backlog週次報告からToDoを自動抽出→GitHub台帳(data/todos.json)集約→Backlogカード化、期限超過/必須項目不足/不要候補をChatwork通知、不要判断は代表最終判断。GitHub Actions実行・dry-run制御で安全設計。8/31時点でTODO総数178件・完了142件・期限超過4件が既に稼働中。**次アクション**: ⑥「2週間連続未達成→契約解除/スポット定額化」の判定を、この仕組みのどのデータ(期限超過フラグ等)で行うか運用ルールを整理する(藤原さん・黒崎さんとすり合わせ要)
 - **プレップ自動化の正体調査、進行中**: Mac miniのcron・launchdはともに空。`~/development/git--/outputs/`にprepファイルを発見→このリポジトリのGitHub Actionsが正体と推定。`cd ~/development/git-- && git remote -v && ls .github/workflows/ && cat .github/workflows/*.yml`の実行結果待ち
 
 ## 残タスク
