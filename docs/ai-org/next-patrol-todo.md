@@ -15,6 +15,7 @@
 
 ## GO待ち(藤原さん)
 - 改善会議シート配布(共有設定→貼るだけ・会議9/4 14:30)/星川さん返信(未完了業務の内容ヒアリング要)/億ごえ受講者ページOK→今岡さんへLINE送信/野口あかねさんクレカ回答/川向さん件は井上さんへ進捗確認
+- **藤原さんTODO(業務効率化による窓口離脱計画)をNotionに記録済み**(https://app.notion.com/p/3d10f74337fd8170ae3ec3cba4166e26 )。Googleスプレッドシートへの直接セル書き込み手段がないため記録場所をNotionにした。未確定事項: ①億ごえ引き継ぎの業務範囲、③顧客接点離脱の対象案件リスト化、⑥TODO管理ツール「コツコツ」(黒崎さんがGitHubに上げたもの)のリポジトリ場所・使い方を黒崎さんに確認して運用開始手順を整理する
 - **プレップ自動化の正体調査、進行中**: Mac miniのcron・launchdはともに空。`~/development/git--/outputs/`にprepファイルを発見→このリポジトリのGitHub Actionsが正体と推定。`cd ~/development/git-- && git remote -v && ls .github/workflows/ && cat .github/workflows/*.yml`の実行結果待ち
 
 ## 残タスク
