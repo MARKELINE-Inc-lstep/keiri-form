@@ -59,8 +59,11 @@
           </div>
         </div>
 
-        <label>取引先名 <span style="color:var(--muted);font-weight:400">（任意）</span></label>
-        <input type="text" id="torihiki" placeholder="例）ハウスドゥ">
+        <label>対象年月 <span class="req">必須</span></label>
+        <input type="month" id="targetMonth" required>
+
+        <label>氏名・会社名 <span style="color:var(--muted);font-weight:400">（必須）</span></label>
+        <input type="text" id="torihiki" placeholder="例）山田太郎 / 株式会社ABC" required>
 
         <label>メモ <span style="color:var(--muted);font-weight:400">（任意）</span></label>
         <input type="text" id="memo" placeholder="例）6月分">
@@ -87,6 +90,7 @@
         target="sink" style="display:none">
     <input type="hidden" name="category" id="h_category">
     <input type="hidden" name="direction" id="h_direction">
+    <input type="hidden" name="targetMonth" id="h_targetMonth">
     <input type="hidden" name="torihiki" id="h_torihiki">
     <input type="hidden" name="memo" id="h_memo">
     <input type="hidden" name="filename" id="h_filename">
@@ -127,6 +131,7 @@
         iframe.onload=finish;
         document.getElementById('h_category').value=v.category;
         document.getElementById('h_direction').value=v.direction;
+        document.getElementById('h_targetMonth').value=v.targetMonth;
         document.getElementById('h_torihiki').value=v.torihiki;
         document.getElementById('h_memo').value=v.memo;
         document.getElementById('h_filename').value=v.filename;
@@ -141,7 +146,10 @@
       e.preventDefault();
       var msg=document.getElementById('msg'), btn=document.getElementById('go');
       var cat=sel.value, files=document.getElementById('files').files;
+      var targetMonth=document.getElementById('targetMonth').value;
       if(!cat) return flash(msg,'ng','種類を選択してください');
+      if(!targetMonth) return flash(msg,'ng','対象年月を選択してください');
+      if(!document.getElementById('torihiki').value.trim()) return flash(msg,'ng','氏名・会社名を入力してください');
       if(dirMap[cat]===true && !direction) return flash(msg,'ng','「発行」か「受領」を選択してください');
       if(!files.length) return flash(msg,'ng','ファイルを選択してください');
 
@@ -151,6 +159,7 @@
           var b64=await toBase64(files[i]);
           await postViaForm({
             category:cat, direction:direction,
+            targetMonth:targetMonth,
             torihiki:document.getElementById('torihiki').value,
             memo:document.getElementById('memo').value,
             filename:files[i].name, mimeType:files[i].type||'application/octet-stream',

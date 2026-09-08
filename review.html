@@ -82,7 +82,8 @@
           (u.desc ? '<div class="desc">' + esc(u.desc) + '</div>' : '') +
           '<div class="row">' +
             '<select onchange="onCat(this,' + i + ')"><option value="">種類を選択</option>' + opts + '</select>' +
-            '<input type="text" id="tori-' + i + '" placeholder="取引先（任意）">' +
+            '<input type="text" id="tori-' + i + '" placeholder="氏名・会社名" required>' +
+            '<input type="month" id="month-' + i + '" required>' +
           '</div>' +
           '<div class="dirRow" id="dir-' + i + '"><div class="seg">' +
             '<button type="button" onclick="pickDir(this,' + i + ',\'発行\')">発行</button>' +
@@ -106,14 +107,19 @@
     function sortIt(i, fileId) {
       var cat = state['cat' + i] || '';
       var dir = state['dir' + i] || '';
+      var targetMonth = document.getElementById('month-' + i).value || '';
+      var subject = document.getElementById('tori-' + i).value.trim();
       var r = document.getElementById('r-' + i);
       if (!cat) { r.className = 'r ng'; r.textContent = '種類を選択してください'; return; }
       if (DIRMAP[cat] === true && !dir) { r.className = 'r ng'; r.textContent = '発行/受領を選択してください'; return; }
+      if (!targetMonth) { r.className = 'r ng'; r.textContent = '対象年月を選択してください'; return; }
+      if (!subject) { r.className = 'r ng'; r.textContent = '氏名・会社名を入力してください'; return; }
       var btn = document.getElementById('go-' + i);
       btn.disabled = true; btn.innerHTML = '<span class="spin"></span>移動中…';
       apiPost({
         action: 'sort', fileId: fileId, category: cat, direction: dir,
-        torihiki: document.getElementById('tori-' + i).value, memo: ''
+        targetMonth: targetMonth,
+        torihiki: subject, memo: ''
       }).then(function(res){
         if (res.ok) {
           r.className = 'r ok'; r.textContent = res.message;
